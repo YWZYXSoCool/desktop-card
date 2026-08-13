@@ -35,7 +35,10 @@
         const d = dateInput.trim();
         if (!d) return;
         // 目标定为该日 00:00（本地时区），存储为 ISO 保证跨时区一致
-        countdown.set(new Date(`${d}T00:00:00`).toISOString(), nameInput.trim());
+        countdown.set(
+            new Date(`${d}T00:00:00`).toISOString(),
+            nameInput.trim(),
+        );
         notified = false;
         persist();
     }
@@ -98,7 +101,12 @@
                 <span class="unit">天</span>
                 {#if !remain.done}
                     <span class="hms"
-                        >{String(remain.hours).padStart(2, "0")}:{String(remain.minutes).padStart(2, "0")}:{String(remain.seconds).padStart(2, "0")}</span
+                        >{String(remain.hours).padStart(2, "0")}:{String(
+                            remain.minutes,
+                        ).padStart(2, "0")}:{String(remain.seconds).padStart(
+                            2,
+                            "0",
+                        )}</span
                     >
                 {/if}
             </div>

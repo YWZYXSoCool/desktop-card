@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { Check, Copy } from "lucide-svelte";
+    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import ConvertRow from "./ConvertRow.svelte";
 
     /** 合法数字字符集（按基数截取 0-f）。 */
     const DIGITS = "0123456789abcdef";
@@ -28,23 +29,8 @@
     /** 当前规范值（bigint 避免大数溢出）；空输入为 null。 */
     let value: bigint | null = $state(null);
 
-    /** 刚复制的行（显示临时 ✓ 反馈）。 */
-    let copiedKey: RowKey | null = $state(null);
-
-    /** 复制某进制的当前文本到系统剪贴板；成功后按钮短暂变 ✓。 */
-    async function copy(key: RowKey) {
-        const text = texts[key];
-        if (!text) return;
-        try {
-            await navigator.clipboard.writeText(text);
-            copiedKey = key;
-            setTimeout(() => {
-                if (copiedKey === key) copiedKey = null;
-            }, 1200);
-        } catch {
-            // 剪贴板写入失败则静默忽略（不打断输入）
-        }
-    }
+    /** 复制反馈：刚复制的行临时变 ✓。 */
+    const feedback = createCopyFeedback();
 
     /** 剔除非法字符与常见前缀（0x/0o/0b），返回可解析的纯数字串。 */
     function sanitize(raw: string, base: number, valid: string): string {
@@ -97,34 +83,16 @@
 
 <div class="grid">
     {#each ROWS as row (row.key)}
-        <label class="field">
-            <span class="name">{row.name}</span>
-            <input
-                type="text"
-                inputmode="numeric"
-                autocomplete="off"
-                spellcheck="false"
-                value={texts[row.key]}
-                onkeydown={(e) => onKeydown(row, e)}
-                oninput={(e) =>
-                    onInput(row, (e.target as HTMLInputElement).value)}
-                aria-label={row.name}
-            />
-            <button
-                type="button"
-                class="copy"
-                class:copied={copiedKey === row.key}
-                disabled={!texts[row.key]}
-                onclick={() => copy(row.key)}
-                aria-label={`复制${row.name}结果`}
-            >
-                {#if copiedKey === row.key}
-                    <Check size={13} aria-hidden="true" />
-                {:else}
-                    <Copy size={13} aria-hidden="true" />
-                {/if}
-            </button>
-        </label>
+        <ConvertRow
+            name={row.name}
+            value={texts[row.key]}
+            copied={feedback.copiedKey === row.key}
+            canCopy={!!texts[row.key]}
+            inputmode="numeric"
+            oninput={(v) => onInput(row, v)}
+            oncopy={() => void feedback.copy(texts[row.key], row.key)}
+            onkeydown={(e) => onKeydown(row, e)}
+        />
     {/each}
 </div>
 
@@ -137,74 +105,5 @@
         grid-template-columns: auto 1fr auto;
         gap: 8px 10px;
         align-items: center;
-    }
-
-    /* display:contents 让 label 内的 span/input 直接成为网格项（仍保留 label 的可点击关联） */
-    .field {
-        display: contents;
-    }
-
-    .name {
-        font-size: 12px;
-        color: var(--text-muted);
-        text-align: right;
-    }
-
-    input {
-        pointer-events: auto;
-        width: 150px;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
-        color: var(--text);
-        background: var(--bg-input);
-        border: 1px solid transparent;
-        border-radius: 6px;
-        outline: none;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease;
-    }
-
-    input::placeholder {
-        color: var(--text-dim);
-    }
-
-    input:focus {
-        border-color: var(--accent);
-        background: var(--bg-input-focus);
-    }
-
-    .copy {
-        pointer-events: auto;
-        width: 22px;
-        height: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        transition:
-            background 150ms ease,
-            color 150ms ease,
-            opacity 150ms ease;
-    }
-
-    .copy:hover:not(:disabled) {
-        background: var(--hover);
-        color: var(--text);
-    }
-
-    .copy:disabled {
-        opacity: 0.35;
-        cursor: default;
-    }
-
-    .copy.copied {
-        color: var(--accent);
     }
 </style>

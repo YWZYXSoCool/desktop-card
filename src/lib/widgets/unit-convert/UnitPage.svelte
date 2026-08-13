@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { Check, Copy } from "lucide-svelte";
+    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import ConvertRow from "./ConvertRow.svelte";
     import { fmt } from "./conversions";
     import type { Unit } from "./conversions";
 
@@ -11,23 +12,8 @@
     /** 当前基准单位数值；空输入为 null。 */
     let canonical: number | null = $state(null);
 
-    /** 刚复制的行（临时 ✓ 反馈）。 */
-    let copiedKey: string | null = $state(null);
-
-    /** 复制某单位的当前文本到系统剪贴板；成功后按钮短暂变 ✓。 */
-    async function copy(key: string) {
-        const text = texts[key];
-        if (!text) return;
-        try {
-            await navigator.clipboard.writeText(text);
-            copiedKey = key;
-            setTimeout(() => {
-                if (copiedKey === key) copiedKey = null;
-            }, 1200);
-        } catch {
-            // 剪贴板写入失败则静默忽略
-        }
-    }
+    /** 复制反馈：刚复制的行临时变 ✓。 */
+    const feedback = createCopyFeedback();
 
     /** 剔除非法字符：仅保留数字、小数点在、正负号与科学计数法指数。 */
     function sanitize(raw: string): string {
@@ -59,32 +45,15 @@
 
 <div class="grid">
     {#each units as u (u.key)}
-        <label class="field">
-            <span class="name">{u.name}</span>
-            <input
-                type="text"
-                inputmode="decimal"
-                autocomplete="off"
-                spellcheck="false"
-                value={texts[u.key] ?? ""}
-                oninput={(e) => onInput(u.key, (e.target as HTMLInputElement).value)}
-                aria-label={u.name}
-            />
-            <button
-                type="button"
-                class="copy"
-                class:copied={copiedKey === u.key}
-                disabled={!texts[u.key]}
-                onclick={() => copy(u.key)}
-                aria-label={`复制${u.name}结果`}
-            >
-                {#if copiedKey === u.key}
-                    <Check size={13} aria-hidden="true" />
-                {:else}
-                    <Copy size={13} aria-hidden="true" />
-                {/if}
-            </button>
-        </label>
+        <ConvertRow
+            name={u.name}
+            value={texts[u.key] ?? ""}
+            copied={feedback.copiedKey === u.key}
+            canCopy={!!texts[u.key]}
+            inputmode="decimal"
+            oninput={(v) => onInput(u.key, v)}
+            oncopy={() => void feedback.copy(texts[u.key] ?? "", u.key)}
+        />
     {/each}
 </div>
 
@@ -97,73 +66,5 @@
         grid-template-columns: auto 1fr auto;
         gap: 8px 10px;
         align-items: center;
-    }
-
-    .field {
-        display: contents;
-    }
-
-    .name {
-        font-size: 12px;
-        color: var(--text-muted);
-        text-align: right;
-    }
-
-    input {
-        pointer-events: auto;
-        width: 150px;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
-        color: var(--text);
-        background: var(--bg-input);
-        border: 1px solid transparent;
-        border-radius: 6px;
-        outline: none;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease;
-    }
-
-    input::placeholder {
-        color: var(--text-dim);
-    }
-
-    input:focus {
-        border-color: var(--accent);
-        background: var(--bg-input-focus);
-    }
-
-    .copy {
-        pointer-events: auto;
-        width: 22px;
-        height: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        transition:
-            background 150ms ease,
-            color 150ms ease,
-            opacity 150ms ease;
-    }
-
-    .copy:hover:not(:disabled) {
-        background: var(--hover);
-        color: var(--text);
-    }
-
-    .copy:disabled {
-        opacity: 0.35;
-        cursor: default;
-    }
-
-    .copy.copied {
-        color: var(--accent);
     }
 </style>
