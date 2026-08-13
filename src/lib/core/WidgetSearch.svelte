@@ -1,15 +1,15 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { Search, Star } from "lucide-svelte";
+    import { Search } from "lucide-svelte";
     import {
         waitReady,
         getWidgets,
         setActiveWidget,
     } from "$lib/widgets/registry.svelte";
-    import type { WidgetDefinition } from "$lib/widgets/api/types";
-    import { fuzzyScore } from "$lib/core/fuzzy";
     import { widgetMeta, type UseEntry } from "$lib/core/widgetMeta.svelte";
     import { widgetStore } from "$lib/core/settings";
+    import { fuzzySearch } from "./widgetSearch";
+    import SearchRow from "./SearchRow.svelte";
 
     let { onclose }: { onclose: () => void } = $props();
 
@@ -19,35 +19,6 @@
     let listEl: HTMLDivElement | undefined = $state();
 
     const results = $derived(fuzzySearch(query.trim()));
-
-    /**
-     * 模糊搜索 widget：关键词命中过滤后，按 收藏 → 最近使用 → 匹配分数 → 名称 排序。
-     * 无关键词时展示全部，同样按收藏/最近使用排序（常用项靠前）。
-     */
-    function fuzzySearch(q: string): WidgetDefinition[] {
-        const needle = q.toLowerCase();
-        const items = getWidgets().map((w) => ({
-            w,
-            score: needle
-                ? Math.max(
-                      fuzzyScore(w.manifest.name, needle),
-                      fuzzyScore(w.manifest.id, needle),
-                      ...w.manifest.keywords.map((k) => fuzzyScore(k, needle)),
-                  )
-                : 0,
-        }));
-        const filtered = needle ? items.filter((x) => x.score >= 0) : items;
-        filtered.sort(
-            (a, b) =>
-                Number(widgetMeta.isFavorite(b.w.manifest.id)) -
-                    Number(widgetMeta.isFavorite(a.w.manifest.id)) ||
-                (widgetMeta.history[b.w.manifest.id]?.lastAt ?? 0) -
-                    (widgetMeta.history[a.w.manifest.id]?.lastAt ?? 0) ||
-                b.score - a.score ||
-                a.w.manifest.name.localeCompare(b.w.manifest.name),
-        );
-        return filtered.map((x) => x.w);
-    }
 
     // 选中项越界（如过滤后结果变少）时复位
     $effect(() => {
@@ -125,32 +96,14 @@
 
     <div class="list" bind:this={listEl}>
         {#each results as w, i (w.manifest.id)}
-            <div class="row" class:selected={i === selected}>
-                <button
-                    type="button"
-                    class="main"
-                    class:selected={i === selected}
-                    onmouseenter={() => (selected = i)}
-                    onclick={() => choose(i)}
-                >
-                    <span class="name">{w.manifest.name}</span>
-                    <span class="kw">{w.manifest.id}</span>
-                </button>
-                <button
-                    type="button"
-                    class="star"
-                    class:active={widgetMeta.isFavorite(w.manifest.id)}
-                    onclick={(e) => onFav(e, w.manifest.id)}
-                    aria-label={widgetMeta.isFavorite(w.manifest.id) ? "取消收藏" : "收藏"}
-                    title={widgetMeta.isFavorite(w.manifest.id) ? "取消收藏" : "收藏"}
-                >
-                    <Star
-                        size={11}
-                        fill={widgetMeta.isFavorite(w.manifest.id) ? "currentColor" : "none"}
-                        aria-hidden="true"
-                    />
-                </button>
-            </div>
+            <SearchRow
+                widget={w}
+                selected={i === selected}
+                isFav={widgetMeta.isFavorite(w.manifest.id)}
+                onhover={() => (selected = i)}
+                onchoose={() => choose(i)}
+                onfav={(e) => onFav(e, w.manifest.id)}
+            />
         {/each}
         {#if results.length === 0}
             <div class="empty">无匹配</div>
@@ -206,87 +159,6 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
-    }
-
-    .row {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        border-radius: 6px;
-    }
-
-    .row.selected {
-        background: var(--accent-soft);
-    }
-
-    .main {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 5px 8px;
-        border: none;
-        border-radius: 6px;
-        background: transparent;
-        cursor: pointer;
-        text-align: left;
-        font-size: 12px;
-        font-family: inherit;
-        color: var(--text);
-    }
-
-    .row.selected .main {
-        color: var(--on-accent);
-    }
-
-    .star {
-        flex: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        margin-right: 3px;
-        padding: 0;
-        border: none;
-        border-radius: 5px;
-        background: transparent;
-        color: var(--text-dim);
-        cursor: pointer;
-        transition:
-            color 150ms ease,
-            background 150ms ease;
-    }
-
-    .star:hover {
-        color: var(--accent);
-        background: var(--hover);
-    }
-
-    .star.active {
-        color: #f5c211;
-    }
-
-    .row.selected .star {
-        color: var(--on-accent);
-    }
-
-    .name {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .kw {
-        flex: none;
-        font-size: 10px;
-        color: var(--text-muted);
-    }
-
-    .row.selected .kw {
-        color: var(--on-accent);
     }
 
     .empty {

@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { Check, Copy, Pipette } from "lucide-svelte";
+    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import ColorField from "./ColorField.svelte";
+    import ColorTop from "./ColorTop.svelte";
     import Palette from "./Palette.svelte";
     import { consumeColorPick, isColorPickPending } from "./pickSignal.svelte";
     import {
@@ -37,8 +39,8 @@
     /** 正在编辑的源字段；为 null 时全部行跟随 rgb。 */
     let source: RowKey | null = $state(null);
 
-    /** 刚复制的行（临时 ✓ 反馈）。 */
-    let copiedKey: RowKey | null = $state(null);
+    /** 复制反馈：刚复制的行临时变 ✓。 */
+    const feedback = createCopyFeedback();
 
     /** 把 rgb 同步到非编辑中的各行。 */
     function syncTexts() {
@@ -85,21 +87,6 @@
             void pick();
         }
     });
-
-    /* 复制某行文本到剪贴板；成功后按钮短暂变 ✓。 */
-    async function copy(key: RowKey) {
-        const text = texts[key];
-        if (!text) return;
-        try {
-            await navigator.clipboard.writeText(text);
-            copiedKey = key;
-            setTimeout(() => {
-                if (copiedKey === key) copiedKey = null;
-            }, 1200);
-        } catch {
-            // 剪贴板写入失败则静默忽略
-        }
-    }
 
     /* 编辑格式行：保留源文本 + 尝试解析驱动 rgb。 */
     function onHexInput(raw: string) {
@@ -152,57 +139,26 @@
 </script>
 
 <div class="color">
-    <!-- 顶部：当前色大色块 + 取色按钮 -->
-    <div class="top">
-        <div class="swatch" style:background={fmtHex(rgb)}></div>
-        <button
-            type="button"
-            class="pick"
-            onclick={pick}
-            disabled={picking}
-            aria-label="从屏幕取色"
-            aria-busy={picking}
-        >
-            <Pipette size={13} aria-hidden="true" />
-        </button>
-    </div>
-
-    {#if unsupported}
-        <div class="unsupported">当前环境不支持屏幕取色</div>
-    {/if}
+    <ColorTop
+        hex={fmtHex(rgb)}
+        {picking}
+        {unsupported}
+        onpick={pick}
+    />
 
     <Palette {rgb} onchange={onPalette} />
 
     <!-- 格式行：可编辑 + 复制 -->
     <div class="rows">
         {#each ROWS as row (row.key)}
-            <label class="field">
-                <span class="name">{row.name}</span>
-                <input
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    value={texts[row.key]}
-                    oninput={(e) =>
-                        row.onInput((e.target as HTMLInputElement).value)}
-                    onblur={() => (source = null)}
-                    aria-label={row.name}
-                />
-                <button
-                    type="button"
-                    class="copy"
-                    class:copied={copiedKey === row.key}
-                    disabled={!texts[row.key]}
-                    onclick={() => copy(row.key)}
-                    aria-label={`复制${row.name}结果`}
-                >
-                    {#if copiedKey === row.key}
-                        <Check size={13} aria-hidden="true" />
-                    {:else}
-                        <Copy size={13} aria-hidden="true" />
-                    {/if}
-                </button>
-            </label>
+            <ColorField
+                name={row.name}
+                value={texts[row.key]}
+                copied={feedback.copiedKey === row.key}
+                oninput={(v) => row.onInput(v)}
+                onblur={() => (source = null)}
+                oncopy={() => void feedback.copy(texts[row.key], row.key)}
+            />
         {/each}
     </div>
 </div>
@@ -216,134 +172,9 @@
         padding: 12px;
     }
 
-    .top {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .swatch {
-        flex: 1;
-        height: 40px;
-        border-radius: 6px;
-        border: 1px solid var(--border-strong);
-    }
-
-    .pick {
-        pointer-events: auto;
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 1px solid var(--border-strong);
-        border-radius: 6px;
-        background: transparent;
-        color: var(--text);
-        cursor: pointer;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease,
-            color 150ms ease;
-    }
-
-    .pick:hover:not(:disabled) {
-        background: var(--accent-soft);
-        border-color: var(--accent);
-        color: var(--accent-text);
-    }
-
-    .pick:disabled {
-        opacity: 0.6;
-        cursor: default;
-    }
-
-    .unsupported {
-        font-size: 12px;
-        color: var(--accent-text);
-        background: var(--accent-soft);
-        padding: 6px 10px;
-        border-radius: 6px;
-    }
-
     .rows {
         display: flex;
         flex-direction: column;
         gap: 8px;
-    }
-
-    .field {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 8px 10px;
-        align-items: center;
-    }
-
-    .name {
-        font-size: 12px;
-        color: var(--text-muted);
-        text-align: right;
-        min-width: 30px;
-        font-variant-numeric: tabular-nums;
-    }
-
-    input {
-        pointer-events: auto;
-        width: 100%;
-        min-width: 0;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
-        color: var(--text);
-        background: var(--bg-input);
-        border: 1px solid transparent;
-        border-radius: 6px;
-        outline: none;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease;
-    }
-
-    input::placeholder {
-        color: var(--text-dim);
-    }
-
-    input:focus {
-        border-color: var(--accent);
-        background: var(--bg-input-focus);
-    }
-
-    .copy {
-        pointer-events: auto;
-        width: 22px;
-        height: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        transition:
-            background 150ms ease,
-            color 150ms ease,
-            opacity 150ms ease;
-    }
-
-    .copy:hover:not(:disabled) {
-        background: var(--hover);
-        color: var(--text);
-    }
-
-    .copy:disabled {
-        opacity: 0.35;
-        cursor: default;
-    }
-
-    .copy.copied {
-        color: var(--accent);
     }
 </style>
