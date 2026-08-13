@@ -33,7 +33,13 @@ const settings: WidgetSetting[] = [
         default: "deepseek",
         options: [
             { label: "DeepSeek", value: "deepseek" },
+            { label: "OpenAI", value: "openai" },
             { label: "火山方舟", value: "volc" },
+            { label: "智谱 GLM", value: "zhipu" },
+            { label: "Kimi 月之暗面", value: "moonshot" },
+            { label: "通义千问", value: "qwen" },
+            { label: "OpenRouter", value: "openrouter" },
+            { label: "自定义", value: "custom" },
         ],
         visibleWhen: { key: "dict.channel", equals: "ai" },
     },
@@ -42,7 +48,7 @@ const settings: WidgetSetting[] = [
         label: "API Key",
         type: "text",
         default: "",
-        placeholder: "DeepSeek / 火山 API Key",
+        placeholder: "所选提供商的 API Key",
         visibleWhen: { key: "dict.channel", equals: "ai" },
     },
     {
@@ -50,7 +56,7 @@ const settings: WidgetSetting[] = [
         label: "模型名",
         type: "text",
         default: "",
-        placeholder: "火山必填，如 ep-xxx / doubao-xxx",
+        placeholder: "火山/自定义必填，如 ep-xxx / gpt-4o-mini",
         visibleWhen: { key: "dict.channel", equals: "ai" },
     },
     {
@@ -58,7 +64,7 @@ const settings: WidgetSetting[] = [
         label: "接口地址",
         type: "text",
         default: "",
-        placeholder: "默认由提供商填充，可覆盖",
+        placeholder: "默认由提供商填充，可覆盖；自定义必须填写",
         visibleWhen: { key: "dict.channel", equals: "ai" },
     },
 ];

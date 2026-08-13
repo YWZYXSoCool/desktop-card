@@ -72,11 +72,19 @@ export type DictResult = { entries: ApiEntry[] };
 
 /* ============================ 业务逻辑（本应在前端） ============================ */
 
-/** 各 AI 提供商的默认接入参数（base 为 OpenAI 兼容宿主，末尾自行拼接 /chat/completions）。 */
+/** 各 AI 提供商的默认接入参数（base 为 OpenAI 兼容宿主，末尾自行拼接 /chat/completions）。
+ *  model 留空表示必须由用户在设置里显式填写（如火山方舟 / 自定义）。 */
 const PROVIDER_DEFAULTS: Record<string, { base: string; model: string }> = {
     // 火山方舟 base 已提供，但模型名必须显式填写（见 lookupViaAi 的校验）
     volc: { base: "https://ark.cn-beijing.volces.com/api/v3", model: "" },
     deepseek: { base: "https://api.deepseek.com", model: "deepseek-chat" },
+    openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+    zhipu: { base: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+    moonshot: { base: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
+    qwen: { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
+    openrouter: { base: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
+    // 自定义来源：无默认 base/model，全部由用户手动填写
+    custom: { base: "", model: "" },
 };
 
 /** AI 系统提示：要求严格返回约定的 JSON 结构，避免每次返回格式漂移。 */
@@ -121,7 +129,8 @@ const CACHE_MAX = 200;
 /** 缓存键：AI 结果依赖提供商与模型，写进键里避免换配置后串结果。 */
 function cacheKey(channel: string, word: string, cfg: DictConfig): string {
     if (channel === "api") return `api|${word.toLowerCase()}`;
-    if (channel === "ai") return `ai|${cfg.aiProvider}|${cfg.model}|${word.toLowerCase()}`;
+    // 结果依赖接入点/模型，写进键里避免换配置后串结果（自定义来源 base 千变万化）
+    if (channel === "ai") return `ai|${cfg.aiProvider}|${cfg.model}|${cfg.baseUrl}|${word.toLowerCase()}`;
     return `${channel}|${word}`;
 }
 
@@ -193,13 +202,18 @@ async function lookupViaApi(word: string, cfg: DictConfig): Promise<ApiEntry[]> 
 /** AI 生成：OpenAI 兼容 chat/completions，要求返回 JSON，解析并归一化为统一词条结构。 */
 async function lookupViaAi(word: string, cfg: DictConfig): Promise<ApiEntry[]> {
     const provider = cfg.aiProvider.trim() || "deepseek";
-    const defaults = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.deepseek;
-    const base = (cfg.baseUrl.trim() || defaults.base).replace(/\/+$/, "");
+    const defaults = PROVIDER_DEFAULTS[provider];
+    const base = (cfg.baseUrl.trim() || defaults?.base || "").replace(/\/+$/, "");
+    // 自定义来源必须显式填写接口地址
+    if (!base) throw new Error("请在设置里填写接口地址（base URL）");
     // 火山方舟必须显式指定模型/推理接入点（ep-xxx / doubao-xxx）
     let model = cfg.model.trim();
     if (!model) {
         if (provider === "volc") {
             throw new Error("火山方舟需要在设置里填写模型名（如 ep-xxx 或 doubao-xxx）");
+        }
+        if (!defaults?.model) {
+            throw new Error("请在设置里填写模型名");
         }
         model = defaults.model;
     }
