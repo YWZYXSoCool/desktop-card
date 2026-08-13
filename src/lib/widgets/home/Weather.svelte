@@ -49,7 +49,9 @@
         onclick={onrefresh}
         onkeydown={(e) => e.key === "Enter" && onrefresh()}
     >
-        <Icon size={13} />
+        <span class="wicon">
+            <Icon size={13} />
+        </span>
         <span class="temp">{temp}°</span>
         {#if desc}
             <span class="desc">{desc}</span>
@@ -80,6 +82,22 @@
 
     .weather .temp {
         font-variant-numeric: tabular-nums;
+    }
+
+    /* 天气图标轻微上下浮动，为静态主页添一点呼吸感（缓慢、不干扰阅读） */
+    .wicon {
+        display: flex;
+        animation: float 3.2s ease-in-out infinite;
+    }
+
+    @keyframes float {
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-2px);
+        }
     }
 
     .weather.muted {

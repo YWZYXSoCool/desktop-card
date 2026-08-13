@@ -26,6 +26,7 @@
         wireKeyboard,
         wireOpenSearch,
         wireSettingChanged,
+        wireCheckUpdate,
         wireWidgetToast,
         wireWindowMove,
         type Unlisten,
@@ -224,6 +225,9 @@
 
         // 全局快捷键唤起：显示后自动打开搜索页
         track(wireOpenSearch(() => (searchOpen = true)));
+
+        // 托盘「检查更新」：跑既有检查流程并弹 toast
+        track(wireCheckUpdate(() => void checkUpdate()));
 
         // 全局鼠标钩子：长按中键（任意位置）松开后，在光标处弹出系统级菜单
         track(wireCardMenuOpen((sx, sy) => void showCardMenu(sx, sy)));

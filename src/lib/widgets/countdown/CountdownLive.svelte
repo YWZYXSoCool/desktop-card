@@ -1,5 +1,7 @@
 <script lang="ts">
     import { RotateCcw } from "lucide-svelte";
+    import { cubicOut } from "svelte/easing";
+    import { scale } from "svelte/transition";
     import type { Remain } from "./countdown.svelte";
 
     interface Props {
@@ -18,11 +20,16 @@
         <span class="days">{remain.days}</span>
         <span class="unit">天</span>
         {#if !remain.done}
-            <span class="hms"
-                >{String(remain.hours).padStart(2, "0")}:{String(
-                    remain.minutes,
-                ).padStart(2, "0")}:{String(remain.seconds).padStart(2, "0")}</span
-            >
+            <!-- 每秒 key 重建 → 微缩放脉冲，模拟倒计时的“滴答”感 -->
+            {#key remain.seconds}
+                <span
+                    class="hms"
+                    in:scale={{ start: 1.05, duration: 140, easing: cubicOut }}
+                    >{String(remain.hours).padStart(2, "0")}:{String(
+                        remain.minutes,
+                    ).padStart(2, "0")}:{String(remain.seconds).padStart(2, "0")}</span
+                >
+            {/key}
         {/if}
     </div>
     <button
@@ -106,5 +113,9 @@
     .reset:hover {
         color: var(--danger);
         background: var(--hover);
+    }
+
+    .reset:active {
+        transform: scale(0.85);
     }
 </style>

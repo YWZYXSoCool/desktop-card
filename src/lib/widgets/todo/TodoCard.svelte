@@ -1,5 +1,7 @@
 <script lang="ts">
     import { Plus } from "lucide-svelte";
+    import { cubicOut } from "svelte/easing";
+    import { fly } from "svelte/transition";
     import type { WidgetContext } from "$lib/widgets/api/types";
     import { todo } from "./todo.svelte";
     import TodoRow from "./TodoRow.svelte";
@@ -128,6 +130,10 @@
 
     .add-btn:hover {
         background: var(--accent-2);
+    }
+
+    .add-btn:active {
+        transform: scale(0.92);
     }
 
     .list {

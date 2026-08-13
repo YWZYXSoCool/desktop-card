@@ -5,12 +5,31 @@
         Search,
         Trash2,
     } from "lucide-svelte";
+    import { onMount } from "svelte";
+    import { cubicOut } from "svelte/easing";
+    import { fly } from "svelte/transition";
     import type { WidgetContext } from "$lib/widgets/api/types";
     import { clipboard } from "./clipboard.svelte";
     import ClipboardRow from "./ClipboardRow.svelte";
 
-    // 契约要求组件接收 { ctx }，但本 widget 直连宿主命令，不使用 ctx 能力。
-    let {}: { ctx: WidgetContext } = $props();
+    let { ctx }: { ctx: WidgetContext } = $props();
+
+    // 恢复持久化的固定项；toggle 时写回 store
+    onMount(async () => {
+        try {
+            clipboard.pinned = await ctx.store!.get<string[]>(
+                "clipboard.pinned",
+                [],
+            );
+        } catch {
+            clipboard.pinned = [];
+        }
+    });
+
+    function onPin(id: string) {
+        clipboard.togglePin(id);
+        ctx.store!.set("clipboard.pinned", clipboard.pinned).catch(() => {});
+    }
 </script>
 
 <div class="clipboard">
@@ -57,11 +76,19 @@
 
     <div class="list">
         {#each clipboard.filtered as item (item.id)}
-            <ClipboardRow
-                {item}
-                oncopy={() => clipboard.copy(item.id)}
-                ondelete={() => clipboard.remove(item.id)}
-            />
+            <!-- in:fly：新收录/过滤进入的记录行滑入；keyed each 复用已有行，不反复重放 -->
+            <div
+                class="row-slot"
+                in:fly={{ y: 8, duration: 200, easing: cubicOut }}
+            >
+                <ClipboardRow
+                    {item}
+                    pinned={clipboard.isPinned(item.id)}
+                    oncopy={() => clipboard.copy(item.id)}
+                    ondelete={() => clipboard.remove(item.id)}
+                    onpin={() => onPin(item.id)}
+                />
+            </div>
         {/each}
 
         {#if clipboard.filtered.length === 0}
@@ -131,6 +158,15 @@
     .icon-btn:hover {
         background: var(--hover);
         color: var(--text);
+    }
+
+    .icon-btn:active {
+        transform: scale(0.9);
+    }
+
+    /* 行动画包装：保持 ClipboardRow 原本的块级布局（flex 子项） */
+    .row-slot {
+        display: flex;
     }
 
     .icon-btn.on {

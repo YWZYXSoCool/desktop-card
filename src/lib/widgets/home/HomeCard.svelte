@@ -70,27 +70,32 @@
 </script>
 
 <div class="home">
-    <Clock
-        {time}
-        {date}
-        fontSize={Number(ctx.settings!.get("fontSize"))}
-        color={timeColor}
-    />
+    <!-- 四块内容错峰入场（CSS 动画，每次切回主页重放）。包装层保持原布局：时钟/天气为普通 flex 子项，版本/主题仍绝对定位 -->
+    <div class="enter clock-wrap" style="--d: 0ms">
+        <Clock
+            {time}
+            {date}
+            fontSize={Number(ctx.settings!.get("fontSize"))}
+            color={timeColor}
+        />
+    </div>
 
-    <Weather
-        temp={weatherStore.current?.temp}
-        desc={weatherStore.current?.desc}
-        iconKey={weatherStore.current?.icon}
-        error={weatherStore.error}
-        onrefresh={() =>
-            void weatherStore.refresh(
-                String(ctx.settings!.get("city") ?? ""),
-                String(ctx.settings!.get("unit") ?? ""),
-            )}
-    />
+    <div class="enter" style="--d: 90ms">
+        <Weather
+            temp={weatherStore.current?.temp}
+            desc={weatherStore.current?.desc}
+            iconKey={weatherStore.current?.icon}
+            error={weatherStore.error}
+            onrefresh={() =>
+                void weatherStore.refresh(
+                    String(ctx.settings!.get("city") ?? ""),
+                    String(ctx.settings!.get("unit") ?? ""),
+                )}
+        />
+    </div>
 
     <!-- 左下角版本号 + 更新提示（卡片内容层 pointer-events:none，交互按钮需恢复） -->
-    <div class="meta">
+    <div class="meta enter" style="--d: 180ms">
         <Meta
             {version}
             {update}
@@ -99,7 +104,9 @@
     </div>
 
     <!-- 右下角明暗主题切换（卡片模式内容层 pointer-events:none，需恢复） -->
-    <ThemeToggle theme={getTheme()} ontoggle={toggleTheme} />
+    <div class="enter theme-wrap" style="--d: 220ms">
+        <ThemeToggle theme={getTheme()} ontoggle={toggleTheme} />
+    </div>
 </div>
 
 <style>
@@ -122,5 +129,36 @@
         align-items: center;
         gap: 4px;
         pointer-events: none; /* 非交互区穿透，避免挡住卡片拖动 */
+    }
+
+    /* 入场动画：轻微上移淡入，`both` 填充保证延迟期间保持首帧隐藏 */
+    .enter {
+        animation: home-in 300ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+        animation-delay: var(--d, 0ms);
+    }
+
+    /* 时钟包装层：内部纵向居中，保证日期缩在时间正下方（.home 只能居中整块） */
+    .clock-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    @keyframes home-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* 主题按钮的包装层：绝对定位贴底，继承右下角定位；不拦截指针（按钮自身恢复） */
+    .theme-wrap {
+        position: absolute;
+        inset: auto 0 0 0;
+        pointer-events: none;
     }
 </style>

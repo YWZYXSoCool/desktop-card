@@ -61,6 +61,11 @@ export function wireOpenSearch(onOpen: () => void): Unlisten[] {
     return [listen("open-search", onOpen)];
 }
 
+/** 托盘「检查更新」：转发给容器跑既有检查流程并弹 toast。 */
+export function wireCheckUpdate(onCheck: () => void): Unlisten[] {
+    return [listen("check-update", onCheck)];
+}
+
 /** 全局鼠标钩子：长按中键（任意位置）松开后，在光标处弹系统级菜单。 */
 export function wireCardMenuOpen(
     onOpen: (screenX: number, screenY: number) => void,

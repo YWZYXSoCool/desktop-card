@@ -1,11 +1,13 @@
 use base64::Engine as _;
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::{
-    menu::{ContextMenu, Menu, MenuItem, PredefinedMenuItem},
+    menu::{CheckMenuItem, ContextMenu, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
+use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::ShortcutState;
 
 mod clipboard;
@@ -147,6 +149,21 @@ fn destroy_widget_sandbox(handle: u64, state: tauri::State<'_, sandbox::SandboxM
     sandbox::destroy(&state, handle);
 }
 
+/// 确保主窗口显示（已在托盘时不 toggle，只显示）。供托盘「检查更新」等需要落地的动作用。
+fn show_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        if !win.is_visible().unwrap_or(false) {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+}
+
+/// 托盘状态：持有「开机自启」CheckMenuItem 的句柄，托盘点击切换后同步勾选态。
+struct TrayState {
+    autostart: Mutex<Option<CheckMenuItem<tauri::Wry>>>,
+}
+
 /// 切换卡片显隐：隐藏即「收进托盘」，音频不中断。
 /// `open_search` 为 true 时（快捷键唤起），显示后通知前端打开搜索页；托盘唤起不触发。
 fn toggle_window(app: &AppHandle, open_search: bool) {
@@ -266,9 +283,31 @@ pub fn run() {
                     let _ = app.emit("card-menu-click", id.to_string());
                 }
             });
+            // 托盘菜单：显隐 / 开机自启（勾选反映系统真实状态）/ 检查更新 / 退出
             let show_hide = MenuItem::with_id(app, "toggle", "显示 / 隐藏", true, None::<&str>)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let autostart_enabled = app
+                .autolaunch()
+                .is_enabled()
+                .unwrap_or(false);
+            let autostart_item = CheckMenuItem::with_id(
+                app,
+                "autostart",
+                "开机自启",
+                true,
+                autostart_enabled,
+                None::<&str>,
+            )?;
+            let check_update = MenuItem::with_id(app, "check-update", "检查更新", true, None::<&str>)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_hide, &quit])?;
+            let menu =
+                Menu::with_items(app, &[&show_hide, &sep1, &autostart_item, &check_update, &sep2, &quit])?;
+
+            // 保存勾选项句柄，供菜单点击后在事件回调里同步勾选态
+            app.manage(TrayState {
+                autostart: Mutex::new(Some(autostart_item)),
+            });
 
             TrayIconBuilder::new()
                 .icon(
@@ -282,6 +321,28 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_window(app, false),
+                    "autostart" => {
+                        // 切换系统自启注册，成功后同步勾选态（失败则保持原状静默）
+                        let current = app.autolaunch().is_enabled().unwrap_or(false);
+                        let next = !current;
+                        let res = if next {
+                            app.autolaunch().enable()
+                        } else {
+                            app.autolaunch().disable()
+                        };
+                        if res.is_ok() {
+                            let state: tauri::State<TrayState> = app.state();
+                            let guard = state.autostart.lock().unwrap();
+                            if let Some(item) = guard.as_ref() {
+                                let _ = item.set_checked(next);
+                            }
+                        }
+                    }
+                    "check-update" => {
+                        // 确保窗口落地，再让前端走既有检查流程并弹 toast
+                        show_window(app);
+                        let _ = app.emit("check-update", ());
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })

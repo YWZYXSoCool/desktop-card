@@ -1,15 +1,17 @@
 <script lang="ts">
-    import { File, Folder, Image as ImageIcon, Trash2 } from "lucide-svelte";
+    import { File, Folder, Image as ImageIcon, Pin, Trash2 } from "lucide-svelte";
     import { basename } from "pathe";
     import type { ClipboardItem } from "./clipboard.svelte";
 
     interface Props {
         item: ClipboardItem;
+        pinned: boolean;
         oncopy: () => void;
         ondelete: () => void;
+        onpin: () => void;
     }
 
-    let { item, oncopy, ondelete }: Props = $props();
+    let { item, pinned, oncopy, ondelete, onpin }: Props = $props();
 
     /** 相对时间：刚刚 / N分钟前 / N小时前 / N天前。 */
     function ago(ts: number): string {
@@ -51,6 +53,34 @@
         }
     }}
 >
+    <button
+        type="button"
+        class="pin"
+        class:active={pinned}
+        onclick={(e) => {
+            e.stopPropagation();
+            onpin();
+        }}
+        aria-label={pinned ? "取消固定" : "固定"}
+        title={pinned ? "取消固定" : "固定"}
+    >
+        <Pin
+            size={12}
+            fill={pinned ? "currentColor" : "none"}
+            aria-hidden="true"
+        />
+    </button>
+    <button
+        type="button"
+        class="del"
+        onclick={(e) => {
+            e.stopPropagation();
+            ondelete();
+        }}
+        aria-label="删除"
+    >
+        <Trash2 size={12} aria-hidden="true" />
+    </button>
     <span class="kind">
         {#if item.kind === "text"}
             <span class="text-preview">{item.text}</span>
@@ -70,17 +100,6 @@
         {/if}
     </span>
     <span class="time">{ago(item.timestamp)}</span>
-    <button
-        type="button"
-        class="del"
-        onclick={(e) => {
-            e.stopPropagation();
-            ondelete();
-        }}
-        aria-label="删除"
-    >
-        <Trash2 size={12} aria-hidden="true" />
-    </button>
 </div>
 
 <style>
@@ -139,6 +158,43 @@
         flex: none;
         font-size: 10px;
         color: var(--text-dim);
+    }
+
+    .pin {
+        pointer-events: auto;
+        flex: none;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        opacity: 0;
+        transition:
+            opacity 150ms ease,
+            color 150ms ease;
+    }
+
+    .row:hover .pin {
+        opacity: 1;
+    }
+
+    .pin:hover {
+        color: var(--accent);
+    }
+
+    .pin.active {
+        opacity: 1;
+        color: var(--accent);
+    }
+
+    .pin:active {
+        transform: scale(0.85);
     }
 
     .del {

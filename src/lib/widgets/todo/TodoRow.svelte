@@ -1,5 +1,7 @@
 <script lang="ts">
     import { Check, Trash2 } from "lucide-svelte";
+    import { cubicOut } from "svelte/easing";
+    import { fly, scale } from "svelte/transition";
     import type { TodoItem } from "./todo.svelte";
 
     interface Props {
@@ -11,7 +13,7 @@
     let { item, ontoggle, onremove }: Props = $props();
 </script>
 
-<div class="row">
+<div class="row" in:fly={{ y: 8, duration: 200, easing: cubicOut }}>
     <button
         type="button"
         class="check"
@@ -21,7 +23,12 @@
         aria-label={item.done ? "标记为未完成" : "标记为完成"}
     >
         {#if item.done}
-            <Check size={11} strokeWidth={3} aria-hidden="true" />
+            <span
+                class="check-icon"
+                in:scale={{ start: 0.3, duration: 170, easing: cubicOut }}
+            >
+                <Check size={11} strokeWidth={3} aria-hidden="true" />
+            </span>
         {/if}
     </button>
     <span class="text" class:done={item.done}>{item.text}</span>
@@ -73,9 +80,17 @@
         border-color: var(--accent);
     }
 
+    .check:active {
+        transform: scale(0.85);
+    }
+
     .check.done {
         background: var(--accent);
         border-color: var(--accent);
+    }
+
+    .check-icon {
+        display: flex;
     }
 
     .text {
@@ -119,5 +134,9 @@
 
     .del:hover {
         color: var(--danger);
+    }
+
+    .del:active {
+        transform: scale(0.85);
     }
 </style>

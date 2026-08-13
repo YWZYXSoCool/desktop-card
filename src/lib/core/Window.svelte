@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { fade } from "svelte/transition";
     import { X } from "lucide-svelte";
 
     let {
@@ -45,7 +46,9 @@
     {/if}
 
     {#if dragOver}
-        <div class="drop-overlay">{dropHint || "松开"}</div>
+        <div class="drop-overlay" transition:fade={{ duration: 120 }}>
+            {dropHint || "松开"}
+        </div>
     {/if}
 
     <button class="close" onclick={onClose} aria-label="关闭" title="关闭">
@@ -170,5 +173,9 @@
     .close:hover {
         color: var(--text);
         background: var(--hover-strong);
+    }
+
+    .close:active {
+        transform: scale(0.85);
     }
 </style>

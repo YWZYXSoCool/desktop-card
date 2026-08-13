@@ -1,15 +1,13 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { Search } from "lucide-svelte";
     import type { WidgetContext } from "$lib/widgets/api/types";
     import { clipboard } from "$lib/widgets/clipboard/clipboard.svelte";
     import { dict, readConfigFromSettings } from "./dictionary.svelte";
     import DictResult from "./DictResult.svelte";
-    import DictSuggest from "./DictSuggest.svelte";
     import DictTopbar from "./DictTopbar.svelte";
+    import SearchBox from "$lib/core/SearchBox.svelte";
 
     let { ctx }: { ctx: WidgetContext } = $props();
-    let input: HTMLInputElement | undefined = $state();
     let focused = $state(false);
     let selected = $state(0);
 
@@ -36,9 +34,8 @@
         }
     });
 
-    /** 切换到本 widget 时：把最新剪贴板文本自动填入输入框并聚焦。 */
+    /** 切换到本 widget 时：把最新剪贴板文本自动填入输入框（聚焦由 SearchBox 负责）。 */
     onMount(async () => {
-        input?.focus();
         try {
             const word = (await clipboard.latestText())?.trim();
             if (word) dict.word = word;
@@ -58,50 +55,11 @@
         }
     }
 
-    /** 键盘移动选中项（suggestions 循环；滚动由 DictSuggest 内部跟随）。 */
-    function move(delta: number) {
-        if (suggestions.length === 0) return;
-        selected = (selected + delta + suggestions.length) % suggestions.length;
-    }
-
     /** 选中建议：填入输入框并立即查询。 */
-    function chooseSel(i = selected) {
-        const w = suggestions[i];
-        if (!w) return;
-        dict.word = w.word;
+    function chooseSuggestion(s: { word: string }) {
+        dict.word = s.word;
         dict.clear();
         void onSearch();
-    }
-
-    function onKeydown(e: KeyboardEvent) {
-        // 有建议时：方向键/回车/ESC 操作建议下拉
-        if (suggestionsVisible && suggestions.length > 0) {
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                move(1);
-                return;
-            }
-            if (e.key === "ArrowUp") {
-                e.preventDefault();
-                move(-1);
-                return;
-            }
-            if (e.key === "Enter" && !e.isComposing) {
-                e.preventDefault();
-                chooseSel();
-                return;
-            }
-            if (e.key === "Escape") {
-                e.preventDefault();
-                input?.blur();
-                return;
-            }
-        }
-        // 无建议时：回车直接查询
-        if (e.key === "Enter" && !e.isComposing && !dict.loading) {
-            e.preventDefault();
-            void onSearch();
-        }
     }
 
     /** 收藏/取消收藏，并持久化（同时刷新建议排序）。 */
@@ -130,36 +88,35 @@
         channel={readConfig().channel === "ai" ? "AI" : "API"}
     />
 
-    <div class="query">
-        <span class="search-icon">
-            <Search size={12} aria-hidden="true" />
-        </span>
-        <input
-            bind:this={input}
-            type="text"
-            placeholder="输入单词，回车查询…"
-            spellcheck="false"
-            autocomplete="off"
-            value={dict.word}
-            oninput={(e) => {
-                dict.word = (e.target as HTMLInputElement).value;
-                // 重置结果让建议下拉能重新出现
-                dict.clear();
-            }}
-            onfocus={() => (focused = true)}
-            onblur={() => (focused = false)}
-            onkeydown={onKeydown}
-        />
-    </div>
-
-    {#if suggestionsVisible}
-        <DictSuggest
-            items={suggestions}
-            {selected}
-            onselect={(i) => (selected = i)}
-            onchoose={(i) => chooseSel(i)}
-        />
-    {/if}
+    <SearchBox
+        mode="inline"
+        value={dict.word}
+        oninput={(v) => {
+            dict.word = v;
+            // 重置结果让建议下拉能重新出现
+            dict.clear();
+        }}
+        placeholder="输入单词，回车查询…"
+        ariaLabel="查询单词"
+        items={suggestions}
+        {selected}
+        onselect={(i) => (selected = i)}
+        onchoose={chooseSuggestion}
+        onenter={() => void onSearch()}
+        onfocus={() => (focused = true)}
+        onblur={() => (focused = false)}
+        empty="无匹配"
+        listVisible={suggestionsVisible}
+        getKey={(s) => s.word}
+    >
+        {#snippet row(s, sel)}
+            <span class="s-word">{s.word}</span>
+            <span class="s-tag" class:muted={!sel}
+                >{#if s.isFav}★{/if}{#if s.count > 1}
+                    × {s.count}{/if}</span
+            >
+        {/snippet}
+    </SearchBox>
 
     <DictResult
         loading={dict.loading}
@@ -178,41 +135,19 @@
         gap: 8px;
     }
 
-    .query {
-        position: relative;
-        display: flex;
-        align-items: center;
+    .s-word {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .search-icon {
-        position: absolute;
-        left: 8px;
-        color: var(--text-dim);
-        pointer-events: none;
+    .s-tag {
+        flex: none;
+        font-size: 10px;
+        font-variant: tabular-nums;
     }
 
-    .query input {
-        pointer-events: auto;
-        flex: 1;
-        min-width: 0;
-        padding: 5px 8px 5px 24px;
-        font-size: 12px;
-        color: var(--text);
-        background: var(--bg-input);
-        border: 1px solid transparent;
-        border-radius: 6px;
-        outline: none;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease;
-    }
-
-    .query input::placeholder {
-        color: var(--text-dim);
-    }
-
-    .query input:focus {
-        border-color: var(--accent);
-        background: var(--bg-input-focus);
+    .s-tag.muted {
+        color: var(--text-muted);
     }
 </style>
