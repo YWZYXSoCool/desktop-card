@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { Check, Plus, Trash2 } from "lucide-svelte";
+    import { Plus } from "lucide-svelte";
     import type { WidgetContext } from "$lib/widgets/api/types";
     import { todo } from "./todo.svelte";
+    import TodoRow from "./TodoRow.svelte";
 
     // 声明了 store 权限，defineWidget 已注入 ctx.store
     let { ctx }: { ctx: WidgetContext } = $props();
@@ -57,30 +58,11 @@
 
     <div class="list">
         {#each todo.items as t (t.id)}
-            <div class="row">
-                <button
-                    type="button"
-                    class="check"
-                    class:done={t.done}
-                    onclick={() => toggle(t.id)}
-                    aria-pressed={t.done}
-                    aria-label={t.done ? "标记为未完成" : "标记为完成"}
-                >
-                    {#if t.done}
-                        <Check size={11} strokeWidth={3} aria-hidden="true" />
-                    {/if}
-                </button>
-                <span class="text" class:done={t.done}>{t.text}</span
-                >
-                <button
-                    type="button"
-                    class="del"
-                    onclick={() => remove(t.id)}
-                    aria-label="删除"
-                >
-                    <Trash2 size={12} aria-hidden="true" />
-                </button>
-            </div>
+            <TodoRow
+                item={t}
+                ontoggle={() => toggle(t.id)}
+                onremove={() => remove(t.id)}
+            />
         {/each}
 
         {#if todo.items.length === 0}
@@ -155,91 +137,6 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
-    }
-
-    .row {
-        /* 内容层 pointer-events:none，需恢复才能接收 hover/点击 */
-        pointer-events: auto;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 3px 4px;
-        border-radius: 6px;
-    }
-
-    .row:hover {
-        background: var(--border);
-    }
-
-    .check {
-        pointer-events: auto;
-        flex: none;
-        width: 14px;
-        height: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 1px solid var(--border-2);
-        border-radius: 4px;
-        background: transparent;
-        color: var(--on-accent);
-        cursor: pointer;
-        transition:
-            background 150ms ease,
-            border-color 150ms ease;
-    }
-
-    .check:hover {
-        border-color: var(--accent);
-    }
-
-    .check.done {
-        background: var(--accent);
-        border-color: var(--accent);
-    }
-
-    .text {
-        flex: 1;
-        min-width: 0;
-        font-size: 12px;
-        color: var(--text);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .text.done {
-        color: var(--text-dim);
-        text-decoration: line-through;
-    }
-
-    .del {
-        pointer-events: auto;
-        flex: none;
-        width: 18px;
-        height: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: none;
-        border-radius: 4px;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        opacity: 0;
-        transition:
-            opacity 150ms ease,
-            color 150ms ease;
-    }
-
-    .row:hover .del {
-        opacity: 1;
-    }
-
-    .del:hover {
-        color: var(--danger);
     }
 
     .empty {

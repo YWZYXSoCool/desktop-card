@@ -2,8 +2,6 @@
     import { onDestroy, onMount } from "svelte";
     import { cubicOut } from "svelte/easing";
     import { invoke } from "@tauri-apps/api/core";
-    import { listen } from "@tauri-apps/api/event";
-    import { getCurrentWebview } from "@tauri-apps/api/webview";
     import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
     import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { toast } from "svelte-sonner";
@@ -18,14 +16,20 @@
     import WidgetSearch from "./WidgetSearch.svelte";
     import Window from "./Window.svelte";
     import { getMenuEntries } from "./menu.svelte";
-    import { debounce, restorePosition, watchMoved } from "./window";
+    import { debounce, restorePosition } from "./window";
     import { checkForUpdate, openUpdateToast } from "./update";
+    import { loadCoreSettings, saveWindowPosition } from "./settings";
     import {
-        applyAutostart,
-        loadCoreSettings,
-        saveWindowPosition,
-        widgetStore,
-    } from "./settings";
+        wireCardMenuClick,
+        wireCardMenuOpen,
+        wireDragDrop,
+        wireKeyboard,
+        wireOpenSearch,
+        wireSettingChanged,
+        wireWidgetToast,
+        wireWindowMove,
+        type Unlisten,
+    } from "./hostBus";
 
     const widget = $derived(activeWidget());
 
@@ -127,8 +131,12 @@
     const unlisteners: Array<() => void> = [];
 
     /** 订阅宿主事件并登记清理函数；监听失败静默忽略（不影响功能）。 */
-    function track(sub: Promise<() => void>): void {
-        sub.then((u) => unlisteners.push(u)).catch(() => {});
+    function track(us: Unlisten[]): void {
+        us.forEach((u) =>
+            Promise.resolve(u)
+                .then((un) => unlisteners.push(un))
+                .catch(() => {}),
+        );
     }
 
     const persistPosition = debounce((x: number, y: number) => {
@@ -163,131 +171,71 @@
             .catch(() => {});
 
         // 窗口移动 → 防抖保存位置
-        track(watchMoved((x, y) => persistPosition(x, y)));
+        track(wireWindowMove((x, y) => persistPosition(x, y)));
 
-        // 文件拖拽：enter/over 高亮，drop 交给当前 widget 判定/处理，leave 复位
+        // 文件拖拽：enter/over 高亮，drop 判定下放给 widget，leave 复位
         track(
-            getCurrentWebview().onDragDropEvent((e) => {
-                const p = e.payload;
-                if (p.type === "enter" || p.type === "over") {
+            wireDragDrop({
+                onEnterOver: () => {
                     dragOver = true;
-                } else if (p.type === "leave") {
+                },
+                onLeave: () => {
                     dragOver = false;
-                } else if (p.type === "drop") {
-                    dragOver = false;
-                    const path = p.paths?.[0];
-                    if (!path) return;
+                },
+                onDrop: (path) => {
                     // 拖拽判定下放给 widget：处理 or 静默忽略
                     const w = activeWidget();
                     w?.onDrop?.(
                         path,
                         createWidgetContext(w.manifest, hostApis),
                     );
-                }
+                },
             }),
         );
 
         // 聚焦时键盘：Tab 循环切换 widget，Ctrl+F 搜索，Ctrl+S 打开设置窗口
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Tab") {
-                if (searchOpen) return; // 搜索打开时 Tab 让位
-                e.preventDefault();
-                cycleWidget();
-            } else if (
-                (e.ctrlKey || e.metaKey) &&
-                e.key.toLowerCase() === "f"
-            ) {
-                e.preventDefault();
-                searchOpen = true;
-            } else if (
-                (e.ctrlKey || e.metaKey) &&
-                e.key.toLowerCase() === "s"
-            ) {
-                e.preventDefault();
-                openSettings();
-            } else if (e.key === "Home") {
-                if (searchOpen) return; // 搜索打开时 Home 让位（输入框光标）
-                e.preventDefault();
-                goMain();
-            }
-        };
-        document.addEventListener("keydown", onKeyDown);
-        unlisteners.push(() =>
-            document.removeEventListener("keydown", onKeyDown),
+        track(
+            wireKeyboard({
+                onKeyDown: (e) => {
+                    if (e.key === "Tab") {
+                        if (searchOpen) return; // 搜索打开时 Tab 让位
+                        e.preventDefault();
+                        cycleWidget();
+                    } else if (
+                        (e.ctrlKey || e.metaKey) &&
+                        e.key.toLowerCase() === "f"
+                    ) {
+                        e.preventDefault();
+                        searchOpen = true;
+                    } else if (
+                        (e.ctrlKey || e.metaKey) &&
+                        e.key.toLowerCase() === "s"
+                    ) {
+                        e.preventDefault();
+                        openSettings();
+                    } else if (e.key === "Home") {
+                        if (searchOpen) return; // 搜索打开时 Home 让位（输入框光标）
+                        e.preventDefault();
+                        goMain();
+                    }
+                },
+            }),
         );
 
         // 全局快捷键唤起：显示后自动打开搜索页
-        track(
-            listen("open-search", () => {
-                searchOpen = true;
-            }),
-        );
+        track(wireOpenSearch(() => (searchOpen = true)));
 
         // 全局鼠标钩子：长按中键（任意位置）松开后，在光标处弹出系统级菜单
-        track(
-            listen<{ 0: number; 1: number } | [number, number]>(
-                "card-menu-open",
-                (e) => {
-                    const [sx, sy] = Array.isArray(e.payload)
-                        ? e.payload
-                        : [e.payload[0], e.payload[1]];
-                    void showCardMenu(sx, sy);
-                },
-            ),
-        );
+        track(wireCardMenuOpen((sx, sy) => void showCardMenu(sx, sy)));
 
         // 沙箱内 ctx.toast 触发的通知：转发为卡片 toast
-        track(
-            listen<{ msg: string; kind: string }>("widget-toast", (e) => {
-                const { msg, kind } = e.payload;
-                if (kind === "error") toast.error(msg);
-                else toast(msg);
-            }),
-        );
+        track(wireWidgetToast());
 
-        // 设置窗口发来的变更：在卡片窗口内应用副作用并持久化（单一写入者）。
-        // 主页里声明的主机级设置（开机自启 / 全局快捷键）由宿主负责应用，且只在成功后才落库。
-        track(
-            listen<{ widgetId: string; key: string; value: unknown }>(
-                "widget-setting-changed",
-                (e) => {
-                    const { widgetId, key, value } = e.payload;
-                    const w = getWidgets().find((x) => x.manifest.id === widgetId);
+        // 设置窗口发来的变更：在卡片窗口内应用副作用并持久化（单一写入者）
+        track(wireSettingChanged());
 
-                    if (key === "autostart.enabled") {
-                        // 开机自启：applyAutostart 注册/注销系统并自行持久化（失败仅提示）
-                        void applyAutostart(Boolean(value)).catch(() =>
-                            toast.error("开机自启设置失败"),
-                        );
-                        return;
-                    }
-                    if (key === "global.shortcut") {
-                        // 自定义快捷键：Rust 校验 + 注册 + 持久化（失败仅提示，旧键不变）
-                        void invoke("set_toggle_shortcut", {
-                            shortcut: String(value),
-                        }).catch(() => toast.error("快捷键无效"));
-                        return;
-                    }
-
-                    if (w) {
-                        w.onSettingChange?.(
-                            key,
-                            value,
-                            createWidgetContext(w.manifest, hostApis),
-                        );
-                    }
-                    widgetStore.set(key, value).catch(() => {});
-                },
-            ),
-        );
-
-        // 系统级菜单（Rust 弹出）的点击：按 id 路由到对应 widget 动作，执行后夺回卡片焦点
-        track(
-            listen<string>("card-menu-click", (e) => {
-                getMenuEntries().find((it) => it.id === e.payload)?.action();
-                getCurrentWindow().setFocus().catch(() => {});
-            }),
-        );
+        // 系统级菜单（Rust 弹出）的点击：按 id 路由到对应 widget 动作
+        track(wireCardMenuClick());
     });
 
     onDestroy(() => {

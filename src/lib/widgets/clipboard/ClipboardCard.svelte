@@ -4,44 +4,13 @@
         Play,
         Search,
         Trash2,
-        File,
-        Folder,
-        Image as ImageIcon,
     } from "lucide-svelte";
-    import { basename } from "pathe";
     import type { WidgetContext } from "$lib/widgets/api/types";
     import { clipboard } from "./clipboard.svelte";
-    import type { ClipboardItem } from "./clipboard.svelte";
+    import ClipboardRow from "./ClipboardRow.svelte";
 
     // 契约要求组件接收 { ctx }，但本 widget 直连宿主命令，不使用 ctx 能力。
     let {}: { ctx: WidgetContext } = $props();
-
-    /** 相对时间：刚刚 / N分钟前 / N小时前 / N天前。 */
-    function ago(ts: number): string {
-        const s = Math.floor((Date.now() - ts) / 1000);
-        if (s < 60) return "刚刚";
-        if (s < 3600) return `${Math.floor(s / 60)}分钟前`;
-        if (s < 86400) return `${Math.floor(s / 3600)}小时前`;
-        return `${Math.floor(s / 86400)}天前`;
-    }
-
-    function isImageFile(p: string): boolean {
-        return /\.(png|jpe?g|gif|webp|bmp|ico|svg)$/i.test(p);
-    }
-
-    function fileIcon(item: ClipboardItem) {
-        const paths = item.files ?? [];
-        if (paths.length === 1 && isImageFile(paths[0])) return ImageIcon;
-        if (paths.length > 1) return Folder;
-        return File;
-    }
-
-    function preview(item: ClipboardItem): string {
-        if (item.text) return item.text;
-        if (item.files)
-            return (item.files ?? []).map(basename).slice(0, 2).join("、");
-        return "图片";
-    }
 </script>
 
 <div class="clipboard">
@@ -88,51 +57,11 @@
 
     <div class="list">
         {#each clipboard.filtered as item (item.id)}
-            <div
-                class="row"
-                role="button"
-                tabindex="0"
-                onclick={() => clipboard.copy(item.id)}
-                onkeydown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        clipboard.copy(item.id);
-                    }
-                }}
-            >
-                <span class="kind">
-                    {#if item.kind === "text"}
-                        <span class="text-preview">{item.text}</span
-                        >
-                    {:else if item.kind === "image"}
-                        <img
-                            class="thumb"
-                            src={`data:image/png;base64,${item.png}`}
-                            alt="图片"
-                            loading="lazy"
-                        />
-                    {:else}
-                        {@const Icon = fileIcon(item)}
-                        <span class="file-icon">
-                            <Icon size={12} aria-hidden="true" />
-                        </span>
-                        <span class="text-preview file-names">{preview(item)}</span
-                        >
-                    {/if}
-                </span>
-                <span class="time">{ago(item.timestamp)}</span>
-                <button
-                    type="button"
-                    class="del"
-                    onclick={(e) => {
-                        e.stopPropagation();
-                        clipboard.remove(item.id);
-                    }}
-                    aria-label="删除"
-                >
-                    <Trash2 size={12} aria-hidden="true" />
-                </button>
-            </div>
+            <ClipboardRow
+                {item}
+                oncopy={() => clipboard.copy(item.id)}
+                ondelete={() => clipboard.remove(item.id)}
+            />
         {/each}
 
         {#if clipboard.filtered.length === 0}
@@ -254,91 +183,6 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
-    }
-
-    .row {
-        /* 内容层 pointer-events:none，需在控件上恢复 */
-        pointer-events: auto;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 6px;
-        border-radius: 6px;
-        cursor: copy;
-    }
-
-    .row:hover {
-        background: var(--border);
-    }
-
-    .kind {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .text-preview {
-        flex: 1;
-        min-width: 0;
-        font-size: 12px;
-        color: var(--text);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .file-names {
-        color: var(--text-muted);
-    }
-
-    .file-icon {
-        flex: none;
-        color: var(--text-muted);
-    }
-
-    .thumb {
-        flex: none;
-        max-width: 64px;
-        max-height: 40px;
-        border-radius: 4px;
-        object-fit: cover;
-        background: var(--bg-sunken);
-    }
-
-    .time {
-        flex: none;
-        font-size: 10px;
-        color: var(--text-dim);
-    }
-
-    .del {
-        pointer-events: auto;
-        flex: none;
-        width: 18px;
-        height: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: none;
-        border-radius: 4px;
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        opacity: 0;
-        transition:
-            opacity 150ms ease,
-            color 150ms ease;
-    }
-
-    .row:hover .del {
-        opacity: 1;
-    }
-
-    .del:hover {
-        color: var(--danger);
     }
 
     .empty {
