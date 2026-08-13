@@ -1,0 +1,26 @@
+{
+    "id": "countdown",
+    "name": "倒计时",
+    "version": "1.0.0",
+    "entry": "index.ts",
+    "keywords": [
+        "倒计时",
+        "倒数",
+        "日期",
+        "纪念日",
+        "生日",
+        "节日",
+        "事件",
+        "countdown",
+        "until",
+        "date",
+        "event"
+    ],
+    "size": {
+        "width": 240,
+        "height": 140
+    },
+    "permissions": [
+        "store"
+    ]
+}
