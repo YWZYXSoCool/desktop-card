@@ -11,10 +11,12 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::ShortcutState;
 
 mod clipboard;
+mod download;
 mod global_mouse;
 mod http;
 mod sandbox;
 mod shortcut;
+mod store;
 mod update;
 
 /// 从音频文件里抽出的专辑封面，data 为 base64 编码的图片字节。
@@ -81,7 +83,7 @@ struct ExternalWidget {
 
 /// 外部 widget 根目录：环境变量 `DESKTOP_CARD_WIDGETS`（开发调试）优先，
 /// 否则落在应用数据目录下的 `widgets`。放入即被扫描。
-fn widget_root(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn widget_root(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(dir) = std::env::var_os("DESKTOP_CARD_WIDGETS") {
         return Ok(PathBuf::from(dir));
     }
@@ -234,6 +236,7 @@ fn show_card_menu(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -258,6 +261,9 @@ pub fn run() {
             create_widget_sandbox,
             call_widget_sandbox,
             destroy_widget_sandbox,
+            store::write_external_widget,
+            store::remove_external_widget,
+            store::import_local_widget,
             clipboard::clipboard_get_history,
             clipboard::clipboard_write,
             clipboard::clipboard_remove,
@@ -271,6 +277,8 @@ pub fn run() {
         ])
         .setup(|app| {
             app.manage(sandbox::SandboxManager::default());
+            // 进程级下载任务注册表（供沙箱 widget 的 download 权限使用）
+            download::init_global(std::sync::Arc::new(download::DownloadManager::default()));
             app.manage(clipboard::ClipboardState::new(app.handle())?);
             clipboard::spawn_monitor(app.handle().clone());
             // 全局显隐快捷键：按持久化配置注册（默认 ctrl+alt+space）

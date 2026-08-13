@@ -35,6 +35,8 @@ const PROVIDERS: Record<
         add: (label: string, action: () => void) =>
             registerMenuEntry(manifest.name, label, action),
     }),
+    // 通用网络/文件下载原语：仅沙箱外部 widget 可用（后端注入），内置不开放
+    download: () => undefined,
     // 保留，默认不开放
     window: () => undefined,
     execute: () => undefined,

@@ -31,6 +31,7 @@ use tauri_plugin_store::StoreExt;
 struct Permissions {
     store: bool,
     toast: bool,
+    download: bool,
 }
 
 impl Permissions {
@@ -43,6 +44,7 @@ impl Permissions {
         Permissions {
             store: perms.contains(&"store"),
             toast: perms.contains(&"toast"),
+            download: perms.contains(&"download"),
         }
     }
 }
@@ -152,10 +154,12 @@ fn store_set(app: &AppHandle, key: &str, value: JsonValue) {
 
 /// 创建沙箱：注入 registerWidget + 权限 ctx shim、eval bundle 源码、校验捕获 widget。
 /// 在**调用方线程**（worker 线程内）执行，返回的 `SandboxWidget` 不跨线程。
+/// `handle` 用于下载任务上报进度事件时回传（前端按 handle 重渲染对应 widget）。
 fn create_sandbox(
     dir: &str,
     manifest: &JsonValue,
     app: AppHandle,
+    handle: u64,
 ) -> Result<SandboxWidget, String> {
     let entry = manifest
         .get("entry")
@@ -208,6 +212,74 @@ fn create_sandbox(
                 )
                 .map_err(|e| e.to_string())?;
         }
+        if perms.download {
+            // 通用下载/文件/HTTP 原语：全部同步、经 String 中转；后台任务经进程级注册表。
+            ctx.globals()
+                .set(
+                    "__hostHttp",
+                    Func::new(|method: String, url: String, headers: String, body: String| {
+                        match crate::download::http(&method, &url, &headers, &body) {
+                            Ok(resp) => serde_json::json!({
+                                "ok": true,
+                                "status": resp.status,
+                                "body": resp.body,
+                            })
+                            .to_string(),
+                            Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),
+                        }
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            let app_dl = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostDownload",
+                    Func::new(move |url: String, headers: String, filename: String| {
+                        crate::download::download(&app_dl, handle, &url, &headers, &filename)
+                            .to_string()
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            let app_txt = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostWriteText",
+                    Func::new(move |filename: String, content: String| {
+                        crate::download::write_text(&app_txt, handle, &filename, &content).to_string()
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            let app_dir = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostDownloadDir",
+                    Func::new(move || {
+                        crate::download::download_dir(&app_dir)
+                            .to_string_lossy()
+                            .into_owned()
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            ctx.globals()
+                .set(
+                    "__hostDownloadStatus",
+                    Func::new(
+                        || serde_json::to_string(&crate::download::status()).unwrap_or_else(|_| "[]".into()),
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
+            let app_cancel = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostDownloadCancel",
+                    Func::new(move |id: String| {
+                        if let Ok(id) = id.parse::<u64>() {
+                            crate::download::cancel(&app_cancel, id);
+                        }
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+        }
 
         // 3. 用 JS shim 组装权限作用域 ctx（store/toast 走上面的宿主函数）。
         let mut shim = String::from("globalThis.__widgetCtx = {};");
@@ -222,6 +294,17 @@ fn create_sandbox(
             shim.push_str(
                 "__widgetCtx.toast = { info: (m) => __hostToast(m, 'info'), \
                  error: (m) => __hostToast(m, 'error') };",
+            );
+        }
+        if perms.download {
+            shim.push_str(
+                "__widgetCtx.download = { \
+                 http: (m, u, h, b) => JSON.parse(__hostHttp(m, u, JSON.stringify(h||{}), b||'')), \
+                 download: (u, h, f) => Number(__hostDownload(u, JSON.stringify(h||{}), f)), \
+                 writeText: (f, c) => Number(__hostWriteText(f, c)), \
+                 dir: () => __hostDownloadDir(), \
+                 status: () => JSON.parse(__hostDownloadStatus()), \
+                 cancel: (id) => __hostDownloadCancel(String(id)) };",
             );
         }
         ctx.eval::<(), _>(shim.as_str())
@@ -270,7 +353,7 @@ pub fn register(
     let dir = dir.to_owned();
     let manifest = manifest.clone();
     let app = app.clone();
-    std::thread::spawn(move || match create_sandbox(&dir, &manifest, app) {
+    std::thread::spawn(move || match create_sandbox(&dir, &manifest, app, id) {
         Ok(sb) => {
             let _ = ready_tx.send(Ok(()));
             worker_loop(sb, rx);

@@ -40,6 +40,22 @@
             add();
         }
     }
+
+    // 设置页可隐藏已完成 / 把已完成排到底部
+    const showCompleted = $derived(
+        ctx.settings?.get<boolean>("showCompleted") ?? true,
+    );
+    const doneToBottom = $derived(
+        ctx.settings?.get<boolean>("doneToBottom") ?? false,
+    );
+    const items = $derived.by(() => {
+        let list = todo.items;
+        if (!showCompleted) list = list.filter((t) => !t.done);
+        if (doneToBottom) {
+            list = [...list].sort((a, b) => Number(a.done) - Number(b.done));
+        }
+        return list;
+    });
 </script>
 
 <div class="todo">
@@ -59,7 +75,7 @@
     </div>
 
     <div class="list">
-        {#each todo.items as t (t.id)}
+        {#each items as t (t.id)}
             <TodoRow
                 item={t}
                 ontoggle={() => toggle(t.id)}
@@ -67,8 +83,14 @@
             />
         {/each}
 
-        {#if todo.items.length === 0}
-            <div class="empty">暂无待办，输入后回车添加</div>
+        {#if items.length === 0}
+            <div class="empty">
+                {#if !showCompleted && todo.items.length > 0}
+                    已完成条目已隐藏
+                {:else}
+                    暂无待办，输入后回车添加
+                {/if}
+            </div>
         {/if}
     </div>
 </div>

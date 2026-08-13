@@ -72,7 +72,20 @@
         try {
             const result = await new Ctor().open();
             const c = hexToRgb(result.sRGBHex);
-            if (c) rgb = c;
+            if (c) {
+                rgb = c;
+                // 设置页配置：取色后按所选格式自动复制（默认不复制）
+                const fmt = ctx.settings?.get<string>("copyFormat") ?? "none";
+                const text =
+                    fmt === "rgb"
+                        ? fmtRgb(c)
+                        : fmt === "hsl"
+                          ? fmtHsl(c)
+                          : fmt === "hex"
+                            ? fmtHex(c)
+                            : "";
+                if (text) void feedback.copy(text, fmt);
+            }
         } catch {
             // 用户按 Esc / 取消，颜色不变
         } finally {

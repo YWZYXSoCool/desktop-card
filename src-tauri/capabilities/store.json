@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "store",
+  "description": "Capability for the widget store window",
+  "windows": ["store"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "store:default",
+    "dialog:default"
+  ]
+}

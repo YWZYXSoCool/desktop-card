@@ -17,5 +17,8 @@
         "width": 280,
         "height": 500
     },
-    "permissions": []
+    "permissions": [
+        "store",
+        "settings"
+    ]
 }

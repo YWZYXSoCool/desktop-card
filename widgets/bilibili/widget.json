@@ -1,0 +1,21 @@
+{
+  "id": "bilibili",
+  "name": "B站下载",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "keywords": [
+    "b站", "bilibili", "下载", "视频", "音频", "弹幕", "封面", "批量",
+    "download", "video", "audio", "danmaku", "barrage"
+  ],
+  "size": { "width": 340, "height": 460 },
+  "permissions": ["store", "download", "toast", "settings"],
+  "settings": [
+    {
+      "key": "download.dir",
+      "label": "下载目录",
+      "type": "text",
+      "default": "%USERPROFILE%\\Downloads",
+      "placeholder": "留空默认：用户下载文件夹"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { UINode, WidgetContext, WidgetRenderer } from "./types";
 
 /** 沙箱交互回调：`(eventId, type, data)` → 宿主转发给沙箱 handleEvent。 */
@@ -7,6 +8,8 @@ type EventHandler = (id: string, type: string, data: unknown) => void;
 /**
  * 沙箱 widget 渲染器：`mount(container)` 后调沙箱 `render()` 取 JSON 树，
  * 水合为真实 DOM；交互节点 → 回调沙箱 `handleEvent` → 重调 `render()` 重水合。
+ * 沙箱内无计时器，无法自轮询；凡声明了 `download` 权限的 widget，宿主下载任务
+ * 进度变更会发 `widget-progress`（带 handle）事件，这里按 handle 重渲染以刷新进度。
  */
 export function sandboxRenderer(handle: number): WidgetRenderer {
     return {
@@ -37,11 +40,20 @@ export function sandboxRenderer(handle: number): WidgetRenderer {
                 }
             };
 
+            // 下载任务进度变更 → 只刷新本 widget（按 handle 匹配）
+            const unlistenPromise = listen<{ handle: number }>(
+                "widget-progress",
+                (e) => {
+                    if (e.payload.handle === handle) reRender();
+                },
+            );
+
             reRender();
 
             return () => {
                 disposed = true;
                 container.replaceChildren();
+                unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
             };
         },
     };

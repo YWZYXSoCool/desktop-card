@@ -10,6 +10,7 @@
         cycleWidget,
         getWidgets,
         goMain,
+        reloadWidgets,
         waitReady,
     } from "$lib/widgets/registry.svelte";
     import { createWidgetContext, hostApis } from "$lib/widgets/api";
@@ -28,6 +29,7 @@
         wireSettingChanged,
         wireCheckUpdate,
         wireWidgetToast,
+        wireWidgetsChanged,
         wireWindowMove,
         type Unlisten,
     } from "./hostBus";
@@ -68,11 +70,12 @@
         const win = new WebviewWindow("settings", {
             url: `/?mode=settings&widget=${activeWidget()?.manifest.id}`,
             title: "设置",
-            width: 320,
-            height: 200,
+            width: 400,
+            height: 460,
             center: true,
             resizable: false,
             // 与主卡片一致的观感：无边框、透明、无阴影，圆角由 CSS 呈现
+            alwaysOnTop: true,
             decorations: false,
             transparent: true,
             shadow: false,
@@ -183,11 +186,11 @@
                 onLeave: () => {
                     dragOver = false;
                 },
-                onDrop: (path) => {
+                onDrop: (paths) => {
                     // 拖拽判定下放给 widget：处理 or 静默忽略
                     const w = activeWidget();
                     w?.onDrop?.(
-                        path,
+                        paths,
                         createWidgetContext(w.manifest, hostApis),
                     );
                 },
@@ -228,6 +231,9 @@
 
         // 托盘「检查更新」：跑既有检查流程并弹 toast
         track(wireCheckUpdate(() => void checkUpdate()));
+
+        // Widget 商店安装/卸载：热重载注册表（新 widget 立即可用，被卸载的回落主页）
+        track(wireWidgetsChanged(() => void reloadWidgets()));
 
         // 全局鼠标钩子：长按中键（任意位置）松开后，在光标处弹出系统级菜单
         track(wireCardMenuOpen((sx, sy) => void showCardMenu(sx, sy)));

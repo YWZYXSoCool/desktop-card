@@ -3,7 +3,7 @@
 卡片核心是一个 **widget 平台**：功能以 widget 为单元，内置与外部共用同一套契约。
 外部 widget 以目录形式放入运行时可扫描的位置，**放入即用，无需重新构建应用**。
 
-可直接参考本仓库的示例：[`external-widgets/counter/`](../external-widgets/counter/)。
+可直接参考本仓库的示例：[`widgets/counter/`](../widgets/counter/)。
 
 ---
 
@@ -30,11 +30,11 @@ widgets/
 | 方式 | 根目录 |
 |------|--------|
 | 生产 | 应用数据目录下的 `widgets`（Windows 为 `%APPDATA%/<identifier>/widgets`） |
-| 开发调试 | 环境变量 `DESKTOP_CARD_WIDGETS` 指向任意目录（如仓库 `external-widgets`） |
+| 开发调试 | 环境变量 `DESKTOP_CARD_WIDGETS` 指向任意目录（如仓库 `widgets`） |
 
 ```bash
-# 开发：让应用扫描仓库里的 external-widgets/
-set DESKTOP_CARD_WIDGETS=%CD%\external-widgets
+# 开发：让应用扫描仓库里的 widgets/
+set DESKTOP_CARD_WIDGETS=%CD%\widgets
 npm run tauri dev
 ```
 
@@ -72,6 +72,7 @@ widget 通过各生命周期方法收到的 `ctx: WidgetContext` 只含它申请
 | `settings` | — | 声明式设置项 + `onSettingChange` 回调（宿主渲染设置面板） |
 | `drop` | `ctx.drop.hint` | 文件拖拽提示文案 + `onDrop` 回调 |
 | `toast` | `ctx.toast` | 通知 `info(msg)` / `error(msg)` |
+| `download` | `ctx.download` | 通用网络/文件下载原语（裸 HTTP / URL→文件 / 文本→文件） |
 | `window` | — | 保留：自定义窗口（未开放） |
 | `execute` | — | 保留：系统命令（默认不开放） |
 
@@ -81,6 +82,32 @@ widget 通过各生命周期方法收到的 `ctx: WidgetContext` 只含它申请
 > （`ctx.store.get(key, fb)` 直接返回值，`ctx.store.set(key, value)` 立即写入），
 > 与内置 widget 的异步 `Promise` 版不同。原因：沙箱内走宿主→Rust 的 JSON 字符串转发，
 > 同步即可，无需 Promise。
+
+### 4.1 download 权限：通用网络 / 文件下载原语
+
+沙箱外部 widget 本身**没有网络、没有文件写入**。需要这些能力时申请 `download` 权限，
+宿主注入通用原语（后端零业务、不关心前端），业务（API 构造、解析、选流、拼文件名）
+全部由 widget 自己负责。**后端不含任何 B 站 / 具体服务商字样，任何需要下载的外部 widget 都能复用。**
+
+申请后 `ctx.download` 提供（全部同步返回）：
+
+| 方法 | 说明 |
+|------|------|
+| `http(method, url, headers?, body?)` | 裸 HTTP：转发请求，返回 `{ok, status, body}`，**不解析**。适合 JSON / XML 解析类请求 |
+| `download(url, headers, filename)` | 把 URL 流式下载到**下载目录**的指定文件名，返回 job id |
+| `writeText(filename, content)` | 把文本写入下载目录的指定文件名，返回 job id |
+| `dir()` | 当前下载目录路径（读 store 键 `download.dir`，缺省 `%USERPROFILE%\Downloads`） |
+| `status()` | 全部任务状态快照 `SandboxJobStatus[]` |
+| `cancel(id)` | 取消任务（下载在下一块中断并标记 `cancelled`） |
+
+- **下载目录**：`download.dir` 设置项（平台设置页渲染）或默认下载文件夹。
+- **进度刷新**：沙箱内无计时器（不可自轮询）。下载任务进度变更时，宿主发
+  `widget-progress`（带 sandbox handle）事件 → 前端 `sandboxView` 按 handle 自动重渲染，
+  因此 widget 只要在 `render()` 里读 `ctx.download.status()` 就能实时显示进度条。
+- **任务归属**：后端注册表是进程级的，`status()` 返回全部任务。widget 应记录自己提交的
+  job id（如 `state.jobs[id] = label`）并按 id 过滤展示，避免混入其它 widget 的任务。
+- **文件名安全**：后端会清洗文件名（去路径分隔符与 Windows 非法字符），防路径穿越。
+- 参考实现：[`widgets/bilibili/`](../widgets/bilibili/)（B 站下载器，混合批量）。
 
 ## 5. 入口 bundle 契约（QuickJS 沙箱）
 
@@ -160,7 +187,7 @@ registerWidget({
 
 **方式 A：拷贝进 widget 目录（推荐，目录自包含、可整体部署）**
 把 `types.d.ts` 复制到 widget 目录，本地引用。示例见
-[`external-widgets/counter/`](../external-widgets/counter/)（目录内自带一份同源拷贝）：
+[`widgets/counter/`](../widgets/counter/)（目录内自带一份同源拷贝）：
 
 ```js
 /// <reference path="./types.d.ts" />
@@ -183,8 +210,8 @@ registerWidget({
 
 - **无 DOM / 无浏览器全局**：拿不到 `window`、`document`、`fetch`、`localStorage` 等。
 - **无 Tauri 能力**：沙箱内没有 `invoke` / IPC，触不到文件系统与窗口系统。
-- **API 面同时收窄**：只注入 `permissions` 里显式声明的宿主函数（`store` / `toast`），
-  且都经 JSON 字符串往返，widget 只能通过这些白名单触点与宿主通信。
+- **API 面同时收窄**：只注入 `permissions` 里显式声明的宿主函数（`store` / `toast` /
+  `download`），且都经 JSON 字符串往返，widget 只能通过这些白名单触点与宿主通信。
 
 每个沙箱跑在**独立 worker 线程**，崩溃/死循环不影响其它 widget 与宿主（宿主调用带超时
 语义由通道断开兜底）。恶意 bundle 无法逃逸 QuickJS 触碰宿主进程。看参考实现：

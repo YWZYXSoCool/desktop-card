@@ -25,11 +25,11 @@ export function wireWindowMove(
     return [watchMoved(onMoved)];
 }
 
-/** 文件拖拽：enter/over → onEnterOver，leave/drop → onLeave，drop 附路径交给 onDrop。 */
+/** 文件拖拽：enter/over → onEnterOver，leave/drop → onLeave，drop 附全部路径交给 onDrop。 */
 export function wireDragDrop(h: {
     onEnterOver: () => void;
     onLeave: () => void;
-    onDrop: (path: string) => void;
+    onDrop: (paths: string[]) => void;
 }): Unlisten[] {
     return [
         getCurrentWebview().onDragDropEvent((e) => {
@@ -40,8 +40,7 @@ export function wireDragDrop(h: {
                 h.onLeave();
             } else if (p.type === "drop") {
                 h.onLeave();
-                const path = p.paths?.[0];
-                if (path) h.onDrop(path);
+                if (p.paths?.length) h.onDrop(p.paths);
             }
         }),
     ];
@@ -64,6 +63,11 @@ export function wireOpenSearch(onOpen: () => void): Unlisten[] {
 /** 托盘「检查更新」：转发给容器跑既有检查流程并弹 toast。 */
 export function wireCheckUpdate(onCheck: () => void): Unlisten[] {
     return [listen("check-update", onCheck)];
+}
+
+/** Widget 商店安装/卸载后发来的「注册表已变化」：主窗口据此热重载 widget 列表。 */
+export function wireWidgetsChanged(onChange: () => void): Unlisten[] {
+    return [listen("widgets-changed", onChange)];
 }
 
 /** 全局鼠标钩子：长按中键（任意位置）松开后，在光标处弹系统级菜单。 */

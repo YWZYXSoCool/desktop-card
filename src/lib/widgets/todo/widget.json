@@ -5,5 +5,8 @@
   "entry": "index.ts",
   "keywords": ["待办", "任务", "清单", "列表", "todo", "task", "list"],
   "size": { "width": 260, "height": 260 },
-  "permissions": ["store"]
+  "permissions": [
+        "store",
+        "settings"
+    ]
 }

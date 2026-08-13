@@ -30,6 +30,17 @@
         clipboard.togglePin(id);
         ctx.store!.set("clipboard.pinned", clipboard.pinned).catch(() => {});
     }
+
+    // 设置页可关掉图片/文件条目（文本恒显示）
+    const showImages = $derived(ctx.settings?.get<boolean>("showImages") ?? true);
+    const showFiles = $derived(ctx.settings?.get<boolean>("showFiles") ?? true);
+    const items = $derived(
+        clipboard.filtered.filter(
+            (i) =>
+                (i.kind === "image" ? showImages : true) &&
+                (i.kind === "files" ? showFiles : true),
+        ),
+    );
 </script>
 
 <div class="clipboard">
@@ -75,7 +86,7 @@
     </div>
 
     <div class="list">
-        {#each clipboard.filtered as item (item.id)}
+        {#each items as item (item.id)}
             <!-- in:fly：新收录/过滤进入的记录行滑入；keyed each 复用已有行，不反复重放 -->
             <div
                 class="row-slot"
@@ -91,10 +102,12 @@
             </div>
         {/each}
 
-        {#if clipboard.filtered.length === 0}
+        {#if items.length === 0}
             <div class="empty">
                 {#if clipboard.filter.trim()}
                     无匹配记录
+                {:else if clipboard.items.length > 0}
+                    当前类型的条目已隐藏
                 {:else}
                     暂无剪贴板记录，复制内容后自动收录
                 {/if}

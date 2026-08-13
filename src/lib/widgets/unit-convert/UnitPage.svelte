@@ -4,7 +4,19 @@
     import { fmt } from "./conversions";
     import type { Unit } from "./conversions";
 
-    let { units }: { units: Unit[] } = $props();
+    let {
+        units,
+        decimals = "auto",
+    }: {
+        units: Unit[];
+        /** 结果小数位配置："auto" 或 0–6 数字字符串。 */
+        decimals?: string;
+    } = $props();
+
+    /** 解析小数位：auto → undefined（自动去尾零），否则固定位数。 */
+    const precision = $derived(
+        decimals === "auto" ? undefined : Number(decimals),
+    );
 
     /** 每个单位当前展示的文本（编辑中的源字段保留用户输入，其余由基准值格式化）。 */
     const texts = $state<Record<string, string>>({});
@@ -38,7 +50,7 @@
         canonical = unit.toBase(num);
         for (const u of units) {
             if (u.key === key) continue;
-            texts[u.key] = fmt(u.fromBase(canonical));
+            texts[u.key] = fmt(u.fromBase(canonical), precision);
         }
     }
 </script>

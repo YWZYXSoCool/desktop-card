@@ -26,8 +26,8 @@ export interface WidgetBlueprint {
     setup?(ctx: WidgetContext): void | Promise<void>;
     /** 可选：设置变更的额外副作用（框架已自动应用设置到响应式状态）。 */
     onSettingChange?(key: string, value: unknown, ctx: WidgetContext): void;
-    /** 可选：处理被拖入的文件（widget 自行判定是否处理）。 */
-    onDrop?(path: string, ctx: WidgetContext): void;
+    /** 可选：处理被拖入的文件（可能一次多份，widget 自行判定处理哪些）。 */
+    onDrop?(paths: string[], ctx: WidgetContext): void;
 }
 
 /**

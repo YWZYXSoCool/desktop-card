@@ -13,13 +13,14 @@
         "player"
     ],
     "size": {
-        "width": 300,
-        "height": 160
+        "width": 340,
+        "height": 200
     },
     "dropHint": "松开播放",
     "permissions": [
         "store",
         "drop",
-        "toast"
+        "toast",
+        "settings"
     ]
 }

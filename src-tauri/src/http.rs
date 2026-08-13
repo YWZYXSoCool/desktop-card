@@ -14,20 +14,20 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpRequest {
-    method: String,
-    url: String,
+    pub(crate) method: String,
+    pub(crate) url: String,
     #[serde(default)]
-    headers: HashMap<String, String>,
+    pub(crate) headers: HashMap<String, String>,
     /// 原始请求体（字符串），前端自行 JSON 序列化，后端原样转发。
     #[serde(default)]
-    body: Option<String>,
+    pub(crate) body: Option<String>,
 }
 
 /// 原始响应：状态码 + 正文原文。业务解析交给前端。
 #[derive(Serialize)]
 pub struct HttpResponse {
-    status: u16,
-    body: String,
+    pub(crate) status: u16,
+    pub(crate) body: String,
 }
 
 /// 请求超时：避免网络卡死拖住异步命令。
@@ -54,7 +54,7 @@ pub async fn http_request(req: HttpRequest) -> Result<HttpResponse, String> {
 }
 
 /// 与命令等价的纯请求逻辑，独立出来便于测试。
-async fn perform_request(req: &HttpRequest) -> Result<HttpResponse, String> {
+pub(crate) async fn perform_request(req: &HttpRequest) -> Result<HttpResponse, String> {
     let method = reqwest::Method::from_bytes(req.method.to_uppercase().as_bytes())
         .map_err(|_| format!("不支持的 HTTP 方法: {}", req.method))?;
 

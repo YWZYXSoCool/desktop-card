@@ -146,8 +146,12 @@ export const CATEGORIES: UnitCategory[] = [
     },
 ];
 
-/** 把换算结果格式化为可读文本：去掉浮点噪声与多余的尾零。 */
-export function fmt(n: number): string {
+/** 把换算结果格式化为可读文本：去掉浮点噪声与多余的尾零。
+ *  @param decimals 指定小数位（0–6）；缺省为自动（去尾零）。 */
+export function fmt(n: number, decimals?: number): string {
     if (!isFinite(n)) return "";
+    if (typeof decimals === "number" && decimals >= 0) {
+        return n.toFixed(decimals);
+    }
     return String(parseFloat(n.toPrecision(12)));
 }

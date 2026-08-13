@@ -8,5 +8,9 @@
     "color", "picker", "eyedropper", "palette", "rgb", "hex", "hsl"
   ],
   "size": { "width": 320, "height": 320 },
-  "permissions": ["menu"]
+  "permissions": [
+        "menu",
+        "store",
+        "settings"
+    ]
 }

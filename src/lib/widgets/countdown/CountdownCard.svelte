@@ -19,10 +19,11 @@
     );
     const remain = $derived(target ? remaining(target, now) : null);
 
-    // 到点只提醒一次，避免每秒都弹
+    // 到点只提醒一次，避免每秒都弹（设置页可关闭提醒）
+    const alert = $derived(ctx.settings?.get<boolean>("alert") ?? true);
     let notified = $state(false);
     $effect(() => {
-        if (remain?.done && !notified) {
+        if (alert && remain?.done && !notified) {
             notified = true;
             toast(`倒计时结束：${countdown.name || "时间到"}`);
         }

@@ -24,6 +24,6 @@ export async function createSandboxWidget(
         render: sandboxRenderer(handle),
         setup: () => call("setup"),
         onSettingChange: (key, value) => call("onSettingChange", [key, value]),
-        onDrop: (path) => call("onDrop", [path]),
+        onDrop: (paths) => call("onDrop", [paths]),
     };
 }

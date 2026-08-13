@@ -13,6 +13,9 @@
     ];
 
     let active = $state("base");
+
+    /** 设置页配置的结果小数位（"auto" 或 0–6 数字字符串）。 */
+    const decimals = $derived(ctx.settings?.get<string>("decimals") ?? "auto");
 </script>
 
 <div class="converter">
@@ -38,7 +41,7 @@
             {:else}
                 {@const cat = CATEGORIES.find((c) => c.key === active)}
                 {#if cat}
-                    <UnitPage units={cat.units} />
+                    <UnitPage units={cat.units} decimals={decimals} />
                 {/if}
             {/if}
         {/key}

@@ -1,0 +1,31 @@
+{
+  "widgets": [
+    {
+      "id": "counter",
+      "name": "计数器",
+      "description": "简单的加减计数器，支持自定义步长",
+      "version": "1.0.0",
+      "author": "ywzyx",
+      "path": "counter",
+      "files": []
+    },
+    {
+      "id": "json-formatter",
+      "name": "JSON 格式化",
+      "description": "粘贴 JSON，一键格式化 / 压缩 / 校验，缩进可选 2 或 4 空格",
+      "version": "1.0.0",
+      "author": "ywzyx",
+      "path": "json-formatter",
+      "files": []
+    },
+    {
+      "id": "bilibili",
+      "name": "B站下载",
+      "description": "从 B 站下载视频 / 视频音频 / 音频 / 封面 / 弹幕，支持混合批量",
+      "version": "1.0.0",
+      "author": "ywzyx",
+      "path": "bilibili",
+      "files": []
+    }
+  ]
+}

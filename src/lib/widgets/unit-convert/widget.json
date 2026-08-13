@@ -9,5 +9,8 @@
     "unit", "convert", "base", "binary", "hex", "length", "weight", "temperature"
   ],
   "size": { "width": 320, "height": 320 },
-  "permissions": []
+  "permissions": [
+        "store",
+        "settings"
+    ]
 }

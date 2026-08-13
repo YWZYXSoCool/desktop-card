@@ -205,7 +205,7 @@ interface WidgetDefinition {
 // 外部 widget 在 Rust 内嵌的 QuickJS 沙箱里执行，无 DOM / 无浏览器 API。
 // 它以 `registerWidget(runtime)` 把实现对象交给宿主（宿主注入的全局触点）。
 // 沙箱 ctx 与内置宿主不同：store 是**同步**版（见 SandboxStore）。
-// 参考实现：src-tauri/src/sandbox.rs、external-widgets/counter/index.js。
+// 参考实现：src-tauri/src/sandbox.rs、widgets/counter/index.js。
 // ─────────────────────────────────────────────────────────────────────────
 
 /** 沙箱内 ctx.store：同步版（宿主经 JSON 字符串转发，直接返回，非 Promise）。 */

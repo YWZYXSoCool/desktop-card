@@ -9,6 +9,7 @@
     import type { WidgetContext } from "$lib/widgets/api/types";
     import Clock from "./Clock.svelte";
     import Meta from "./Meta.svelte";
+    import StoreButton from "./StoreButton.svelte";
     import ThemeToggle from "./ThemeToggle.svelte";
     import Weather from "./Weather.svelte";
     import { weather as weatherStore } from "./weatherStore.svelte";
@@ -94,6 +95,11 @@
         />
     </div>
 
+    <!-- 左上角 Widget 商店入口（卡片内容层 pointer-events:none，按钮自身恢复） -->
+    <div class="enter store-wrap" style="--d: 220ms">
+        <StoreButton />
+    </div>
+
     <!-- 左下角版本号 + 更新提示（卡片内容层 pointer-events:none，交互按钮需恢复） -->
     <div class="meta enter" style="--d: 180ms">
         <Meta
@@ -159,6 +165,13 @@
     .theme-wrap {
         position: absolute;
         inset: auto 0 0 0;
+        pointer-events: none;
+    }
+
+    /* 商店按钮的包装层：绝对定位贴左上角；不拦截指针（按钮自身恢复） */
+    .store-wrap {
+        position: absolute;
+        inset: 0 0 auto 0;
         pointer-events: none;
     }
 </style>

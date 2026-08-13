@@ -75,3 +75,16 @@ export function cycleWidget(): void {
 export function setActiveWidget(id: string): void {
     if (widgets.some((w) => w.manifest.id === id)) activeId = id;
 }
+
+/**
+ * 热重载注册表（商店安装/卸载后调用）：重置就绪态并重新扫描内置 + 外部 widget。
+ * 若当前激活的 widget 已被卸载，回落到主页。`widgets` 为 $state，重赋值后
+ * WidgetHost 的 $derived 自动重渲染 / 重挂载新 widget。
+ */
+export async function reloadWidgets(): Promise<void> {
+    ready = null;
+    await waitReady();
+    if (!widgets.some((w) => w.manifest.id === activeId)) {
+        activeId = MAIN_ID;
+    }
+}

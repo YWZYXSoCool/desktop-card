@@ -21,6 +21,7 @@
         "height": 140
     },
     "permissions": [
-        "store"
+        "store",
+        "settings"
     ]
 }

@@ -1,0 +1,21 @@
+{
+  "id": "json-formatter",
+  "name": "JSON 格式化",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "keywords": ["json", "格式化", "format", "美化", "压缩", "校验", "JSON 工具"],
+  "size": { "width": 300, "height": 300 },
+  "permissions": ["store", "settings"],
+  "settings": [
+    {
+      "key": "json.indent",
+      "label": "缩进空格",
+      "type": "select",
+      "default": 2,
+      "options": [
+        { "label": "2 空格", "value": 2 },
+        { "label": "4 空格", "value": 4 }
+      ]
+    }
+  ]
+}
