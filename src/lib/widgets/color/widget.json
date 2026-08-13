@@ -1,0 +1,12 @@
+{
+  "id": "color-picker",
+  "name": "颜色取色器",
+  "version": "1.0.0",
+  "entry": "index.ts",
+  "keywords": [
+    "颜色", "取色", "色盘", "吸管", "调色", "拾色", "调色板", "取色器",
+    "color", "picker", "eyedropper", "palette", "rgb", "hex", "hsl"
+  ],
+  "size": { "width": 320, "height": 320 },
+  "permissions": []
+}

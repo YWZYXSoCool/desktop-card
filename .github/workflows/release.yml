@@ -1,0 +1,47 @@
+name: release
+
+# 推送形如 v1.2.3 的 tag 时：构建 Windows 安装包并创建 GitHub Release。
+# 版本号取自 src-tauri/tauri.conf.json，发布前需同步三处版本号（Cargo.toml / tauri.conf.json / package.json）。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: 构建并发布安装包
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 前端：装依赖 + 构建静态文件（beforeBuildCommand 会调用 npm run build）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # Rust：tauri-action 内部会跑 npm run tauri build
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # 构建安装包（msi + nsis）并发布到 GitHub Release（草稿，人工确认后再发布）
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'desktop-card v__VERSION__'
+          releaseBody: |
+            从下方 assets 下载安装包安装。
+
+            ## 变更
+            详见仓库根目录 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)。
+          releaseDraft: true
+          prerelease: false

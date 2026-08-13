@@ -1,0 +1,25 @@
+{
+    "id": "audio-player",
+    "name": "音频播放器",
+    "version": "1.0.0",
+    "entry": "index.ts",
+    "keywords": [
+        "音乐",
+        "播放",
+        "音频",
+        "歌曲",
+        "music",
+        "audio",
+        "player"
+    ],
+    "size": {
+        "width": 300,
+        "height": 160
+    },
+    "dropHint": "松开播放",
+    "permissions": [
+        "store",
+        "drop",
+        "toast"
+    ]
+}

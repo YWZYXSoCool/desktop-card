@@ -1,0 +1,44 @@
+[package]
+name = "desktop-card"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "desktop_card_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-store = "2.4.4"
+lofty = "0.22"
+base64 = "0.22"
+encoding_rs = "0.8"
+rquickjs = { version = "0.8", features = ["full", "parallel"] }
+arboard = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+semver = "1"
+# 流式下载安装包：逐块写入磁盘并上报进度（reqwest 内部依赖但需显式声明才能用）
+tokio = { version = "1", features = ["fs", "io-util"] }
+futures-util = "0.3"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# 全局鼠标钩子（WH_MOUSE_LL）：长按中键在任意位置弹出卡片菜单；
+# Win32_UI_Input_KeyboardAndMouse 用于向前台窗口发送 Ctrl+C 抓取选中文本
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
+

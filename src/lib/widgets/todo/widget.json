@@ -1,0 +1,9 @@
+{
+  "id": "todo",
+  "name": "待办",
+  "version": "1.0.0",
+  "entry": "index.ts",
+  "keywords": ["待办", "任务", "清单", "列表", "todo", "task", "list"],
+  "size": { "width": 260, "height": 260 },
+  "permissions": ["store"]
+}

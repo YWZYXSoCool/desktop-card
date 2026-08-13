@@ -1,0 +1,20 @@
+{
+  "id": "counter",
+  "name": "计数器",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "keywords": ["计数", "数字", "count", "counter", "步长"],
+  "size": { "width": 200, "height": 120 },
+  "permissions": ["store", "settings", "toast"],
+  "settings": [
+    {
+      "key": "counter.step",
+      "label": "步长",
+      "type": "number",
+      "default": 1,
+      "min": 1,
+      "max": 20,
+      "step": 1
+    }
+  ]
+}

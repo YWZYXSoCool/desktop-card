@@ -1,0 +1,28 @@
+{
+    "id": "home",
+    "name": "主页",
+    "version": "1.0.0",
+    "entry": "index.ts",
+    "keywords": [
+        "主页",
+        "首页",
+        "时间",
+        "日期",
+        "日历",
+        "时间制",
+        "天气",
+        "home",
+        "time",
+        "date",
+        "clock",
+        "weather"
+    ],
+    "size": {
+        "width": 240,
+        "height": 140
+    },
+    "permissions": [
+        "store",
+        "settings"
+    ]
+}

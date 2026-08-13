@@ -1,0 +1,12 @@
+{
+  "id": "dictionary",
+  "name": "英英词典",
+  "version": "1.0.0",
+  "entry": "index.ts",
+  "keywords": [
+    "词典", "释义", "翻译", "单词", "英语", "音标",
+    "dictionary", "definition", "word", "lookup", "english"
+  ],
+  "size": { "width": 300, "height": 360 },
+  "permissions": ["store", "settings", "menu", "toast"]
+}

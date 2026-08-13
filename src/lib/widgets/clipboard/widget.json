@@ -1,0 +1,21 @@
+{
+    "id": "clipboard",
+    "name": "剪贴板",
+    "version": "1.0.0",
+    "entry": "index.ts",
+    "keywords": [
+        "剪贴板",
+        "历史",
+        "复制",
+        "粘贴",
+        "clipboard",
+        "history",
+        "copy",
+        "paste"
+    ],
+    "size": {
+        "width": 280,
+        "height": 500
+    },
+    "permissions": []
+}

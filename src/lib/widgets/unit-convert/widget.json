@@ -1,0 +1,13 @@
+{
+  "id": "unit-convert",
+  "name": "单位转换器",
+  "version": "1.0.0",
+  "entry": "index.ts",
+  "keywords": [
+    "单位", "转换", "换算", "进制", "二进制", "八进制", "十进制", "十六进制",
+    "长度", "重量", "温度", "面积", "体积", "数据", "时间", "速度", "压力",
+    "unit", "convert", "base", "binary", "hex", "length", "weight", "temperature"
+  ],
+  "size": { "width": 320, "height": 320 },
+  "permissions": []
+}

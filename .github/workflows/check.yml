@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: 类型检查 + Rust 测试
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 前端：装依赖 + svelte-check 类型检查
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: svelte-check
+        run: npm run check
+
+      # Rust 后端：测试 + clippy（严格：警告即失败）
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
