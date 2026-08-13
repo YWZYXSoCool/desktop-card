@@ -12,11 +12,9 @@
         cycleWidget,
         getWidgets,
         goMain,
-        setActiveWidget,
         waitReady,
     } from "$lib/widgets/registry.svelte";
     import { createWidgetContext, hostApis } from "$lib/widgets/api";
-    import { requestColorPick } from "$lib/widgets/color/pickSignal.svelte";
     import WidgetSearch from "./WidgetSearch.svelte";
     import Window from "./Window.svelte";
     import { getMenuEntries } from "./menu.svelte";
@@ -283,17 +281,10 @@
             ),
         );
 
-        // 系统级菜单（Rust 弹出）的点击：按 id 路由到各动作，执行后夺回卡片焦点
+        // 系统级菜单（Rust 弹出）的点击：按 id 路由到对应 widget 动作，执行后夺回卡片焦点
         track(
             listen<string>("card-menu-click", (e) => {
-                const id = e.payload;
-                if (id === "color-pick") {
-                    // 取色：切到颜色 widget 并请求取色（ColorPage 挂载后消费并调起吸管）
-                    setActiveWidget("color-picker");
-                    requestColorPick();
-                } else {
-                    getMenuEntries().find((it) => it.id === id)?.action();
-                }
+                getMenuEntries().find((it) => it.id === e.payload)?.action();
                 getCurrentWindow().setFocus().catch(() => {});
             }),
         );

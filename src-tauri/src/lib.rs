@@ -170,7 +170,7 @@ struct CardMenuItem {
     label: String,
 }
 
-/// 在光标处弹出系统级菜单：始终置顶「取色」项 + 各 widget 注册的功能项（直接平铺）。
+/// 在光标处弹出系统级菜单：各 widget 注册的功能项（直接平铺）。
 /// 菜单项 id 带 `card-menu:` 前缀，点击经 `card-menu-click` 事件回传（去掉前缀）给前端执行。
 /// `x`/`y` 为全局鼠标钩子上报的屏幕物理坐标；若窗口收在托盘则先显示，再算出相对窗口左上角的偏移。
 #[tauri::command]
@@ -181,11 +181,6 @@ fn show_card_menu(
     y: i32,
 ) -> Result<(), String> {
     let menu = Menu::new(&window).map_err(|e| e.to_string())?;
-
-    // 取色：全局快捷取色，点击经前端切到颜色 widget 并触发取色
-    let pick = MenuItem::with_id(&window, "card-menu:color-pick", "取色", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    menu.append(&pick).map_err(|e| e.to_string())?;
 
     // 各 widget 注册的功能直接平铺（不再套「widget 功能」子菜单）
     if !widget_items.is_empty() {
