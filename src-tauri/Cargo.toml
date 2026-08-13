@@ -28,18 +28,28 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-store = "2.4.4"
 lofty = "0.22"
 base64 = "0.22"
+md-5 = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"
 encoding_rs = "0.8"
 rquickjs = { version = "0.8", features = ["full", "parallel"] }
 arboard = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 semver = "1"
 # 流式下载安装包：逐块写入磁盘并上报进度（reqwest 内部依赖但需显式声明才能用）
-tokio = { version = "1", features = ["fs", "io-util"] }
+tokio = { version = "1", features = ["fs", "io-util", "process"] }
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# 截图：枚举显示器 + 逐块捕获（虚拟桌面合成）
+xcap = "0.9"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # 全局鼠标钩子（WH_MOUSE_LL）：长按中键在任意位置弹出卡片菜单；
 # Win32_UI_Input_KeyboardAndMouse 用于向前台窗口发送 Ctrl+C 抓取选中文本
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
+
+# 降低 dev 构建的 debuginfo 以减少 rustc/LLVM 内存峰值（否则大依赖图编译时 OOM）。
+# line-tables-only 仍保留行号回溯，几乎不影响调试体验。
+[profile.dev]
+debug = "line-tables-only"
 

@@ -1,4 +1,5 @@
 import type {
+    WidgetBus,
     WidgetContext,
     WidgetManifest,
     WidgetPermission,
@@ -15,6 +16,7 @@ import { registerMenuEntry } from "$lib/core/menu.svelte";
 export interface HostApis {
     store: WidgetStore;
     toast: WidgetToast;
+    bus: WidgetBus;
 }
 
 /** 每种权限 → 从宿主抽取出下放对象。返回 undefined 表示该权限不下放任何东西。 */
@@ -30,6 +32,8 @@ const PROVIDERS: Record<
     drop: (_host, manifest) => ({ hint: manifest.dropHint ?? "" }),
     // 通知
     toast: (host) => host.toast,
+    // 数据通信总线：widget 间 pub/sub（跨窗口）
+    bus: (host) => host.bus,
     // 右键菜单：走全局注册表（handler 进卡片右键菜单的「widget 功能」子菜单）
     menu: (_host, manifest) => ({
         add: (label: string, action: () => void) =>
@@ -37,6 +41,8 @@ const PROVIDERS: Record<
     }),
     // 通用网络/文件下载原语：仅沙箱外部 widget 可用（后端注入），内置不开放
     download: () => undefined,
+    // 加密/编解码原语：仅沙箱外部 widget 可用（后端注入），内置不开放
+    crypto: () => undefined,
     // 保留，默认不开放
     window: () => undefined,
     execute: () => undefined,

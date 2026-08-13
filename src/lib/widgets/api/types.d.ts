@@ -17,8 +17,10 @@ export type WidgetPermission =
     | "toast" // 通知
     | "menu" // 右键菜单（统一放进卡片右键菜单的「widget 功能」子菜单）
     | "download" // 通用网络/文件下载原语（裸 HTTP / URL→文件 / 文本→文件）
+    | "crypto" // 加密/编解码原语（md5/sha1/sha256 → hex，base64/hex 双向编解码）
+    | "bus" // 数据通信总线：widget 间 pub/sub 互发消息（跨窗口）
     | "window" // 保留：自定义窗口
-    | "execute"; // 保留：系统命令（默认不开放）
+    | "execute"; // 进程执行（widget 自备二进制，平台只提供通用起进程原语）
 
 /** 持久化读写句柄。键由 widget 用命名空间管理（如 `volume.level`），互不冲突。 */
 export interface WidgetStore {
@@ -40,6 +42,19 @@ export interface WidgetToast {
 export interface WidgetMenu {
     /** 注册一项右键菜单（进入统一的子菜单）。返回注销函数。 */
     add(label: string, action: () => void): () => void;
+}
+
+/**
+ * 数据通信总线句柄：widget 间 pub/sub 互发消息（跨窗口，内置与沙箱均可）。
+ * channel 建议用 `widgetId/主题` 命名空间（如 `screenshot/new`）避免冲突。
+ * 订阅回调只在 message 到达时触发一次；返回的注销函数可退订。
+ * 仅申请了 `bus` 权限才有。
+ */
+export interface WidgetBus {
+    /** 广播一条消息到某 channel（发送给所有订阅该 channel 的 widget，含自身）。 */
+    emit(channel: string, payload?: unknown): void;
+    /** 订阅某 channel；返回注销函数。payload 为 JSON 可序列化值。 */
+    on(channel: string, cb: (payload: unknown) => void): () => void;
 }
 
 /**
@@ -66,6 +81,8 @@ export interface WidgetContext {
     settings?: WidgetSettings;
     /** 申请了 `menu` 权限才有：注册卡片右键菜单项。 */
     menu?: WidgetMenu;
+    /** 申请了 `bus` 权限才有：widget 间数据通信总线。 */
+    bus?: WidgetBus;
     // 随权限扩展（window / execute …）
 }
 
@@ -75,7 +92,7 @@ export interface WidgetContext {
  * 交互经 `on` 上的事件 id 回调沙箱 `handleEvent`，随后重调 `render()` 刷新。
  */
 export interface UINode {
-    /** 节点类型：row|column|stack|box|spacer|text|button|input|number|toggle|select|slider|color|textarea|image */
+    /** 节点类型：row|column|stack|box|spacer|text|button|input|number|toggle|select|slider|color|textarea|image|search|date|time|checkbox|radio|badge|divider|card|progress|link|icon|avatar|field */
     type: string;
     /** 各类型专属属性：text=value、button=label、input/toggle=value/checked、select=options、image=src … */
     props?: Record<string, unknown>;
@@ -101,6 +118,7 @@ export type WidgetSettingType =
     | "number"
     | "color"
     | "textarea"
+    | "folder"
     | "section";
 
 /** 选项框（select）的单个选项。 */
@@ -165,6 +183,13 @@ export interface TextareaSetting extends SettingBase {
     placeholder?: string;
 }
 
+export interface FolderSetting extends SettingBase {
+    type: "folder";
+    default: string;
+    /** 目录对话框的起始目录（缺省为当前目录）。 */
+    startDir?: string;
+}
+
 /**
  * 设置分隔组（纯展示，无值、不持久化）：把设置面板按组切分，`name` 为组标题。
  * 放在 settings 数组里任意位置，渲染为一个小标题 + 分隔。
@@ -184,6 +209,7 @@ export type WidgetSetting =
     | NumberSetting
     | ColorSetting
     | TextareaSetting
+    | FolderSetting
     | SectionSetting;
 
 /**
@@ -265,7 +291,7 @@ export interface SandboxHttpResponse {
 /** 一个下载/写文件任务的当前状态（`ctx.download.status()` 返回其数组）。 */
 export interface SandboxJobStatus {
     id: number;
-    kind: "download" | "text";
+    kind: "download" | "text" | "exec";
     state: "queued" | "running" | "done" | "error" | "cancelled";
     /** 0–1 进度（下载任务；文本任务恒为 0）。 */
     progress: number;
@@ -297,8 +323,51 @@ export interface SandboxDownload {
     dir(): string;
     /** 全部任务状态快照。 */
     status(): SandboxJobStatus[];
-    /** 取消任务（下载在下一块中断并标记 cancelled）。 */
+    /** 取消任务（下载在下一块中断并标记 cancelled；exec 任务杀进程）。 */
     cancel(id: number): void;
+    /** 删除下载目录里的一个文件（合并后清理临时文件用）。返回是否成功。 */
+    remove(filename: string): boolean;
+}
+
+/**
+ * 沙箱加密/编解码原语（仅申请了 `crypto` 权限才有）。
+ * 全部同步返回；哈希（md5/sha1/sha256）输出小写 hex，base64/hex 双向编解码。
+ * 可失败的 op（b64decode/unhex）输入非法时抛 Error。
+ */
+export interface SandboxCrypto {
+    /** 小写 hex 的 MD5（WBI 签名用）。 */
+    md5(input: string): string;
+    /** 小写 hex 的 SHA-1。 */
+    sha1(input: string): string;
+    /** 小写 hex 的 SHA-256。 */
+    sha256(input: string): string;
+    /** UTF-8 → base64。 */
+    b64encode(input: string): string;
+    /** base64 → UTF-8（非法输入抛错）。 */
+    b64decode(input: string): string;
+    /** UTF-8 → 小写 hex。 */
+    hex(input: string): string;
+    /** hex → UTF-8（非法输入抛错）。 */
+    unhex(input: string): string;
+}
+
+/**
+ * 沙箱进程执行原语（仅申请了 `execute` 权限才有）。
+ * 平台只提供「起进程 / 报状态 / 可取消」，不注入任何具体程序 —— 具体二进制
+ * （如 widget 自行随附的 ffmpeg）由 widget 自备，经 `base()` 定位。
+ */
+export interface SandboxExecute {
+    /**
+     * 提交一个进程任务（如 `ffmpeg`），返回 job id（出现在 `download.status()` 里）。
+     * @param program 可执行文件路径（widget 自备二进制/系统 PATH 均可）
+     * @param args 命令行参数数组
+     * @param cwd 工作目录（缺省用下载目录）
+     */
+    exec(program: string, args: string[], cwd?: string): number;
+    /** 当前 widget 自己的安装目录（找随附二进制用）。 */
+    base(): string;
+    /** 路径是否存在（探测随附二进制用）。 */
+    exists(path: string): boolean;
 }
 
 /** 沙箱 widget 的权限作用域 ctx（只含 widget.json 里声明过的权限）。 */
@@ -309,6 +378,10 @@ export interface SandboxContext {
     toast?: WidgetToast;
     /** 申请了 `download` 权限才有。 */
     download?: SandboxDownload;
+    /** 申请了 `crypto` 权限才有。 */
+    crypto?: SandboxCrypto;
+    /** 申请了 `execute` 权限才有。 */
+    execute?: SandboxExecute;
 }
 
 /** 外部沙箱 widget 通过 `registerWidget` 注册的实现对象。 */

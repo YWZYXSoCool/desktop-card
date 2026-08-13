@@ -11,10 +11,12 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::ShortcutState;
 
 mod clipboard;
+mod crypto;
 mod download;
 mod global_mouse;
 mod http;
 mod sandbox;
+mod screenshot;
 mod shortcut;
 mod store;
 mod update;
@@ -201,6 +203,17 @@ fn show_card_menu(
 ) -> Result<(), String> {
     let menu = Menu::new(&window).map_err(|e| e.to_string())?;
 
+    // 宿主级固定项：截图（框选区域）。点击经 `card-menu-click` 事件回传 `host:screenshot`。
+    let snip = MenuItem::with_id(
+        &window,
+        "card-menu:host:screenshot",
+        "截图",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+    menu.append(&snip).map_err(|e| e.to_string())?;
+
     // 各 widget 注册的功能直接平铺（不再套「widget 功能」子菜单）
     if !widget_items.is_empty() {
         menu.append(&PredefinedMenuItem::separator(&window).map_err(|e| e.to_string())?)
@@ -273,7 +286,11 @@ pub fn run() {
             show_card_menu,
             shortcut::set_toggle_shortcut,
             update::check_for_update,
-            update::download_and_install
+            update::download_and_install,
+            screenshot::capture_screen,
+            screenshot::save_screenshot,
+            screenshot::copy_png_to_clipboard,
+            screenshot::list_screenshots
         ])
         .setup(|app| {
             app.manage(sandbox::SandboxManager::default());

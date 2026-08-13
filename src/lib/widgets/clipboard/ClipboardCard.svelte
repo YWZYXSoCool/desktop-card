@@ -31,6 +31,21 @@
         ctx.store!.set("clipboard.pinned", clipboard.pinned).catch(() => {});
     }
 
+    // 点击复制后的短暂「已复制」反馈：标记该行，约 1s 后消失
+    let justCopied = $state<string | null>(null);
+    let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function onCopy(id: string) {
+        clipboard.copy(id);
+        justCopied = id;
+        clearTimeout(copiedTimer);
+        copiedTimer = setTimeout(() => {
+            if (justCopied === id) justCopied = null;
+        }, 900);
+    }
+
+    $effect(() => () => clearTimeout(copiedTimer));
+
     // 设置页可关掉图片/文件条目（文本恒显示）
     const showImages = $derived(ctx.settings?.get<boolean>("showImages") ?? true);
     const showFiles = $derived(ctx.settings?.get<boolean>("showFiles") ?? true);
@@ -95,7 +110,8 @@
                 <ClipboardRow
                     {item}
                     pinned={clipboard.isPinned(item.id)}
-                    oncopy={() => clipboard.copy(item.id)}
+                    copied={justCopied === item.id}
+                    oncopy={() => onCopy(item.id)}
                     ondelete={() => clipboard.remove(item.id)}
                     onpin={() => onPin(item.id)}
                 />

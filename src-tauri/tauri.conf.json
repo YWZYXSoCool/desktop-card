@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "desktop-card",
-        "width": 264,
-        "height": 164,
+        "width": 300,
+        "height": 220,
         "resizable": false,
         "alwaysOnTop": true,
         "decorations": false,
@@ -40,7 +40,8 @@
           "$MUSIC/**",
           "$VIDEO/**",
           "$PUBLIC/**",
-          "$RESOURCE/**"
+          "$RESOURCE/**",
+          "$APPDATA/**"
         ]
       }
     }

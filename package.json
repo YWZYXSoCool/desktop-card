@@ -10,7 +10,11 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "publish:widgets": "bash scripts/publish-widgets.sh",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --output machine"
   },
   "license": "MIT",
   "dependencies": {

@@ -8,14 +8,20 @@
     "download", "video", "audio", "danmaku", "barrage"
   ],
   "size": { "width": 340, "height": 460 },
-  "permissions": ["store", "download", "toast", "settings"],
+  "permissions": ["store", "download", "toast", "settings", "crypto", "execute"],
   "settings": [
     {
       "key": "download.dir",
       "label": "下载目录",
-      "type": "text",
-      "default": "%USERPROFILE%\\Downloads",
-      "placeholder": "留空默认：用户下载文件夹"
+      "type": "folder",
+      "default": "%USERPROFILE%\\Downloads"
+    },
+    {
+      "key": "ffmpeg.path",
+      "label": "ffmpeg 路径（留空自动探测）",
+      "type": "folder",
+      "default": "",
+      "startDir": "."
     }
   ]
 }

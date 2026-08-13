@@ -148,11 +148,17 @@ export function wireSettingChanged(): Unlisten[] {
     ];
 }
 
-/** 系统级菜单（Rust 弹出）点击 → 按 id 路由到对应 widget 动作，执行后夺回卡片焦点。 */
-export function wireCardMenuClick(): Unlisten[] {
+/** 系统级菜单（Rust 弹出）点击 → 按 id 路由到对应 widget 动作，执行后夺回卡片焦点。
+ *  `onHostAction` 处理宿主级菜单项（如 `host:screenshot`），其余按 widget 注册表路由。 */
+export function wireCardMenuClick(onHostAction?: (id: string) => void): Unlisten[] {
     return [
         listen<string>("card-menu-click", (e) => {
-            getMenuEntries().find((it) => it.id === e.payload)?.action();
+            const id = e.payload;
+            if (id.startsWith("host:")) {
+                onHostAction?.(id);
+            } else {
+                getMenuEntries().find((it) => it.id === id)?.action();
+            }
             getCurrentWindow().setFocus().catch(() => {});
         }),
     ];

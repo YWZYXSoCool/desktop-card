@@ -23,13 +23,15 @@ use tokio::io::AsyncWriteExt;
 
 use crate::http::{perform_request, HttpRequest, HttpResponse};
 
-/// 任务类型：下载 URL 到文件 / 写文本到文件。
+/// 任务类型：下载 URL 到文件 / 写文本到文件 / 跑一个进程。
 #[derive(Clone, Copy, PartialEq, Serialize)]
 pub enum JobKind {
     #[serde(rename = "download")]
     Download,
     #[serde(rename = "text")]
     Text,
+    #[serde(rename = "exec")]
+    Exec,
 }
 
 /// 任务状态机。
@@ -70,6 +72,8 @@ struct Job {
     status: JobStatus,
     /// 取消标志：置为 true 后下载任务在下一块停止写入并标记 cancelled。
     cancel: Arc<AtomicBool>,
+    /// Exec 任务持有的子进程句柄（取消时 kill）。
+    child: Arc<Mutex<Option<tokio::process::Child>>>,
 }
 
 /// 下载任务注册表（进程级单例，见 `GLOBAL`）。
@@ -95,6 +99,7 @@ impl DownloadManager {
                     err: None,
                 },
                 cancel: Arc::new(AtomicBool::new(false)),
+                child: Arc::new(Mutex::new(None)),
             },
         );
         id
@@ -122,6 +127,10 @@ impl DownloadManager {
 
     fn cancel_flag(&self, id: u64) -> Option<Arc<AtomicBool>> {
         self.jobs.lock().unwrap().get(&id).map(|j| j.cancel.clone())
+    }
+
+    fn child_handle(&self, id: u64) -> Option<Arc<Mutex<Option<tokio::process::Child>>>> {
+        self.jobs.lock().unwrap().get(&id).map(|j| j.child.clone())
     }
 }
 
@@ -316,6 +325,86 @@ pub fn write_text(app: &AppHandle, handle: u64, filename: &str, content: &str) -
     id
 }
 
+/// 提交一个「跑进程」任务（如 widget 自备的 ffmpeg），返回 job id。
+/// 立即返回，进程在后台跑；`cwd` 为空时默认用下载目录。输出文件名取 args 末位
+/// 记入 `dest`（供 UI 展示）。可经 `cancel` 杀进程。
+pub fn exec(
+    app: &AppHandle,
+    handle: u64,
+    program: &str,
+    args_json: &str,
+    cwd: &str,
+) -> u64 {
+    let m = manager();
+    let id = m.new_job(JobKind::Exec);
+    let args: Vec<String> = serde_json::from_str(args_json).unwrap_or_default();
+    let dest = args.last().cloned().unwrap_or_else(|| program.to_string());
+    if let Some(d) = PathBuf::from(&dest).file_name().map(|s| s.to_string_lossy().into_owned()) {
+        m.update_status(id, |s| s.dest = Some(d));
+    }
+    let child = m.child_handle(id).unwrap();
+    let app = app.clone();
+    let program = program.to_string();
+    let cwd = cwd.to_string();
+
+    tauri::async_runtime::spawn(async move {
+        let dir = if cwd.is_empty() {
+            download_dir(&app)
+        } else {
+            PathBuf::from(&cwd)
+        };
+        let mut cmd = tokio::process::Command::new(&program);
+        cmd.args(&args);
+        if !dir.as_os_str().is_empty() {
+            cmd.current_dir(&dir);
+        }
+        cmd.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let spawned = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&app, id, &format!("无法启动 {program}: {e}"));
+                return;
+            }
+        };
+        *child.lock().unwrap() = Some(spawned);
+        set_state(&app, id, JobState::Running, handle);
+
+        // 从共享槽取出子进程来 await（避免跨 await 持有 std MutexGuard）。
+        let mut proc = child.lock().unwrap().take();
+        let status = match &mut proc {
+            Some(c) => match c.wait().await {
+                Ok(s) => s,
+                Err(e) => {
+                    set_error(&app, id, &format!("进程异常: {e}"));
+                    return;
+                }
+            },
+            None => {
+                set_error(&app, id, "子进程已丢失");
+                return;
+            }
+        };
+        if status.success() {
+            set_state(&app, id, JobState::Done, handle);
+        } else {
+            set_error(&app, id, &format!("退出码 {}", status.code().unwrap_or(-1)));
+        }
+    });
+    id
+}
+
+/// 探测某个路径是否存在（widget 用来找自己随附的二进制）。
+pub fn exists(path: &str) -> bool {
+    std::path::Path::new(path).exists()
+}
+
+/// 删除下载目录里的一个文件（widget 合并后清理临时文件用）。返回是否成功。
+pub fn remove(app: &AppHandle, filename: &str) -> bool {
+    let path = download_dir(app).join(sanitize_filename(filename));
+    std::fs::remove_file(path).is_ok()
+}
+
 // ── 内部状态写入辅助：统一加锁 + 上报进度事件 ─────────────────────────────────
 
 fn set_state(app: &AppHandle, id: u64, state: JobState, handle: u64) {
@@ -342,10 +431,18 @@ fn set_error(app: &AppHandle, id: u64, err: &str) {
     let _ = app;
 }
 
-/// 取消：置取消标志，下载任务在下一块中断并标记 cancelled。
+/// 取消：置取消标志，下载任务在下一块中断并标记 cancelled；
+/// Exec 任务则 kill 子进程并标记 cancelled。
 pub fn cancel(app: &AppHandle, id: u64) {
     if let Some(flag) = manager().cancel_flag(id) {
         flag.store(true, Ordering::Relaxed);
+    }
+    if let Some(child) = manager().child_handle(id) {
+        if let Ok(mut guard) = child.try_lock() {
+            if let Some(c) = guard.as_mut() {
+                let _ = c.start_kill();
+            }
+        }
     }
     let _ = app;
 }
@@ -367,5 +464,20 @@ mod tests {
         assert_eq!(sanitize_filename("..."), "download");
         assert_eq!(sanitize_filename(""), "download");
         assert_eq!(sanitize_filename("正常 标题.mp4"), "正常 标题.mp4");
+    }
+
+    #[test]
+    fn exists_reports_file_presence() {
+        // 用本文件自身验证存在；用不存在的路径验证缺失。
+        let real = file!();
+        assert!(exists(real));
+        assert!(!exists("definitely-no-such-file-in-here.bin"));
+    }
+
+    #[test]
+    fn exec_kind_serializes_as_exec() {
+        assert_eq!(serde_json::to_value(JobKind::Exec).unwrap(), serde_json::json!("exec"));
+        assert_eq!(serde_json::to_value(JobKind::Download).unwrap(), serde_json::json!("download"));
+        assert_eq!(serde_json::to_value(JobKind::Text).unwrap(), serde_json::json!("text"));
     }
 }

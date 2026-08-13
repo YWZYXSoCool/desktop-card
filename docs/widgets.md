@@ -60,6 +60,24 @@ npm run tauri dev
 }
 ```
 
+设置项按 `type` 判别，`key` 是持久化存储键（widget 自己命名空间）。支持类型：
+
+| `type` | 控件 | 字段 |
+|--------|------|------|
+| `toggle` | 开关 | `default: boolean` |
+| `number` | 数字框 | `default`, `min?`, `max?`, `step?` |
+| `slider` | 滑块 | `default`, `min?`, `max?`, `step?` |
+| `select` | 下拉框 | `default`, `options: [{label, value}]` |
+| `text` | 单行文本 | `default`, `placeholder?` |
+| `textarea` | 多行文本 | `default`, `placeholder?` |
+| `color` | 取色器 | `default: "#5b8def"` |
+| `folder` | **目录选择**（原生对话框） | `default`, `startDir?` |
+| `section` | 分隔组（纯展示标题） | `name` |
+
+`folder` 会渲染一个按钮，点击弹出**原生目录选择框**，选中结果写入该设置项——
+适合下载目录、输出路径这类需要落盘路径的选项。`startDir` 指定对话框起始目录（缺省当前目录）。
+另外可用 `visibleWhen: { key, equals }` 让某项仅在另一项等于某值时显示，满足条件联动。
+
 ## 4. 权限模型（严格控制 API 下放）
 
 宿主不把整份能力交给 widget，而是**只下放 `permissions` 里显式声明的能力**。
@@ -160,25 +178,43 @@ registerWidget({
 
 每个节点：`{ type, props?, style?, children?, on? }`
 
+渲染由宿主 **Svelte 组件库**（`src/lib/widgets/ui/*`）承担，与内置 widget 共用同一套主题
+CSS 变量（`--accent`、`--bg-input`、`--text` 等），明暗主题切换时同步翻转，观感原生一致。
+
 | type | 说明 | 关键 props |
 |------|------|-----------|
 | `row` / `column` / `stack` / `box` | 布局容器（flex 行 / 列 / 叠层 / 普通块） | — |
 | `spacer` | 弹性占位（flex:1） | — |
 | `text` | 文本 | `value` / `label` |
-| `button` | 按钮（点击 → `on`） | `label` |
+| `button` | 按钮（点击 → `on`） | `label`, `tone: accent\|ghost\|danger` |
 | `input` | 文本框 | `value`, `placeholder`, `password` |
 | `number` | 数字框 | `value`, `min`, `max`, `step` |
+| `search` | 搜索框（带放大镜） | `value`, `placeholder` |
+| `textarea` | 多行文本 | `value`, `placeholder` |
 | `toggle` | 开关（切换 → `on`） | `checked` |
+| `checkbox` | 复选框（勾选 → `on`） | `checked`, `label` |
+| `radio` | 单选组（选择 → `on`） | `options: [{label,value}]`, `value` |
 | `select` | 下拉框（选择 → `on`） | `options: [{label,value}]`, `value` |
 | `slider` | 滑块（拖动 → `on`） | `value`, `min`, `max`, `step` |
 | `color` | 取色器（选色 → `on`） | `value` |
-| `textarea` | 多行文本 | `value`, `placeholder` |
-| `image` | 图片 | `src` |
+| `date` | 日期输入（→ `on`） | `value` |
+| `time` | 时间输入（→ `on`） | `value` |
+| `image` | 图片 | `src`, `alt` |
+| `icon` | lucide 图标（安全子集） | `name`, `size`, `color` |
+| `avatar` | 圆形头像 | `src`, `size` |
+| `badge` | 状态徽章（彩色胶囊） | `value`, `tone: neutral\|accent\|success\|danger\|info` |
+| `divider` | 分隔线（可带居中文字） | `label` |
+| `card` | 边框面板容器（可含子树） | `title`, `padding`, `tone: default\|accent\|sunken` |
+| `progress` | 进度条 | `value(0-100)`, `tone: accent\|success\|danger`, `label` |
+| `link` | 链接（点击 → `on`） | `value` |
+| `field` | 标签+控件容器（含子树） | `label`, `hint` |
 
-- `style`：内联样式子集（flex / 宽高 / 字号 / 颜色 / 圆角 / 间距 / 对齐等），键为 CSS 属性名。
+- `style`：内联样式子集（flex / 宽高 / 字号 / 颜色 / 圆角 / 间距 / 对齐等），键为 CSS 属性名
+  （camelCase 亦可，如 `overflowY`）。内联样式覆盖组件库默认观感。
 - `on`：交互节点的事件 id。触发时宿主回调 `handleEvent(id, type, data)`：
-  - 按钮 → `type="click"`；输入类（input/number/slider/color/textarea）→ `type="change"`、`data=当前值`；
-  - toggle → `type="change"`、`data=boolean`；select → `type="change"`、`data=选中值`。
+  - `button`/`link` → `type="click"`、`data={}`；
+  - 输入类（`input`/`number`/`search`/`slider`/`color`/`textarea`/`date`/`time`）→ `type="change"`、`data=当前值`；
+  - `toggle`/`checkbox` → `type="change"`、`data=boolean`；`select`/`radio` → `type="change"`、`data=选中值`。
 
 ## 6. 对外类型声明
 

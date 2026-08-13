@@ -2,6 +2,7 @@ import manifest from "./widget.json";
 import ClockCard from "./HomeCard.svelte";
 import { defineWidget } from "$lib/widgets/api/defineWidget";
 import type { WidgetManifest, WidgetSetting } from "$lib/widgets/api/types";
+import { ACCENT_OPTIONS, setAccent } from "$lib/core/accent.svelte";
 
 /**
  * 声明式设置（TS 单一来源）：状态、恢复、应用、类型收窄全由 defineWidget 自动派生。
@@ -58,6 +59,14 @@ const settings = [
             { label: "华氏度 °F", value: "fahrenheit" },
         ] as const,
     },
+    { type: "section", name: "外观" },
+    {
+        key: "theme.accent",
+        label: "主题色",
+        type: "select" as const,
+        default: "blue",
+        options: ACCENT_OPTIONS,
+    },
     { type: "section", name: "系统" },
     {
         key: "autostart.enabled",
@@ -78,4 +87,7 @@ export const definition = defineWidget({
     manifest: manifest as unknown as WidgetManifest,
     settings,
     component: ClockCard,
+    onSettingChange: (key, value) => {
+        if (key === "theme.accent") setAccent(String(value));
+    },
 });

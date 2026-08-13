@@ -1,0 +1,24 @@
+{
+    "id": "screenshot",
+    "name": "截图",
+    "version": "1.0.0",
+    "entry": "index.ts",
+    "keywords": [
+        "截图",
+        "截屏",
+        "屏幕",
+        "框选",
+        "screen",
+        "screenshot",
+        "capture",
+        "snip"
+    ],
+    "size": {
+        "width": 240,
+        "height": 160
+    },
+    "permissions": [
+        "store",
+        "bus"
+    ]
+}

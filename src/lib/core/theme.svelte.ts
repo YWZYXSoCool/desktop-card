@@ -1,3 +1,4 @@
+import { emit, listen } from "@tauri-apps/api/event";
 import { store } from "./settings";
 
 /**
@@ -23,8 +24,19 @@ export async function loadTheme(): Promise<void> {
     mode = saved === "light" ? "light" : "dark";
 }
 
-/** 切换明暗并持久化（写失败静默，不打断 UI）。 */
+/** 切换明暗并持久化 + 广播到其他窗口（写失败/广播失败静默）。 */
 export function toggleTheme(): void {
     mode = mode === "dark" ? "light" : "dark";
     store.set("theme.mode", mode).catch(() => {});
+    emit("desktop-card:theme-changed", mode).catch(() => {});
+}
+
+/**
+ * 监听其他窗口的主题变更事件，同步到本窗内存（每个窗口是独立 webview，
+ * 模块级 $state 不共享，需经事件联动）。返回取消监听函数，随布局卸载调用。
+ */
+export function listenThemeChanges(): () => void {
+    return listen("desktop-card:theme-changed", (e) => {
+        mode = e.payload === "light" ? "light" : "dark";
+    });
 }

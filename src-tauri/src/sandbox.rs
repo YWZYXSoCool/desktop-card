@@ -32,6 +32,9 @@ struct Permissions {
     store: bool,
     toast: bool,
     download: bool,
+    crypto: bool,
+    execute: bool,
+    bus: bool,
 }
 
 impl Permissions {
@@ -45,6 +48,9 @@ impl Permissions {
             store: perms.contains(&"store"),
             toast: perms.contains(&"toast"),
             download: perms.contains(&"download"),
+            crypto: perms.contains(&"crypto"),
+            execute: perms.contains(&"execute"),
+            bus: perms.contains(&"bus"),
         }
     }
 }
@@ -81,18 +87,33 @@ impl SandboxWidget {
                         None => Value::new_undefined(ctx.clone()),
                     };
                     let c = wctx.clone();
-                    f.call((c, a0, a1, a2))
+                    // 契约：handleEvent(id, type, data, ctx) —— ctx 放最后。
+                    f.call((a0, a1, a2, c))
                 }
                 "onDrop" if !args.is_empty() => {
                     let a0 = js_from_json(&ctx, &args[0]).map_err(|e| e.to_string())?;
                     let c = wctx.clone();
-                    f.call((c, a0))
+                    // 契约：onDrop(paths, ctx)。
+                    f.call((a0, c))
                 }
                 "onSettingChange" if args.len() >= 2 => {
                     let a0 = js_from_json(&ctx, &args[0]).map_err(|e| e.to_string())?;
                     let a1 = js_from_json(&ctx, &args[1]).map_err(|e| e.to_string())?;
                     let c = wctx.clone();
-                    f.call((c, a0, a1))
+                    // 契约：onSettingChange(key, value, ctx)。
+                    f.call((a0, a1, c))
+                }
+                // 总线订阅分发：前端 `widget-bus` 事件推给沙箱 `__hostBusDispatch`，
+                // 回调 ctx.bus.on 注册的 handler。契约：dispatchBus(channel, payload)。
+                "dispatchBus" if args.len() >= 2 => {
+                    let a0 = js_from_json(&ctx, &args[0]).map_err(|e| e.to_string())?;
+                    let a1 = js_from_json(&ctx, &args[1]).map_err(|e| e.to_string())?;
+                    let f: Function = ctx
+                        .globals()
+                        .get("__hostBusDispatch")
+                        .map_err(|e| e.to_string())?;
+                    f.call::<_, ()>((a0, a1)).map_err(|e| e.to_string())?;
+                    Ok(Value::new_undefined(ctx.clone()))
                 }
                 _ => return Err(format!("unsupported method/args: {method}")),
             }
@@ -279,6 +300,66 @@ fn create_sandbox(
                     }),
                 )
                 .map_err(|e| e.to_string())?;
+            let app_remove = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostDownloadRemove",
+                    Func::new(move |filename: String| crate::download::remove(&app_remove, &filename)),
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        if perms.crypto {
+            // 加密/编解码原语：单一入口 `__hostCrypto(op, input)`，全部经 String 中转。
+            ctx.globals()
+                .set(
+                    "__hostCrypto",
+                    Func::new(|op: String, input: String| crate::crypto::dispatch(&op, &input)),
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        if perms.execute {
+            // 进程执行原语：widget 自备二进制（如 ffmpeg），平台不注入任何具体程序。
+            // `__hostExecBase` 返回 widget 自己的目录，widget 据此找随附的二进制。
+            let app_exec = app.clone();
+            let base_dir = dir.to_string();
+            ctx.globals()
+                .set(
+                    "__hostExecExec",
+                    Func::new(move |program: String, args: String, cwd: String| {
+                        // 缺 cwd 时后端默认下载目录，这里传空串即可。
+                        crate::download::exec(&app_exec, handle, &program, &args, &cwd).to_string()
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            ctx.globals()
+                .set(
+                    "__hostExecBase",
+                    Func::new(move || base_dir.clone()),
+                )
+                .map_err(|e| e.to_string())?;
+            ctx.globals()
+                .set(
+                    "__hostFileExists",
+                    Func::new(|path: String| crate::download::exists(&path)),
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        if perms.bus {
+            // 数据通信总线（广播侧）：同步 `app.emit("widget-bus", {channel,payload})`。
+            // 订阅侧由前端 `widget-bus` 事件 → 沙箱 `dispatchBus` 方法回调（见 shim）。
+            let app_bus = app.clone();
+            ctx.globals()
+                .set(
+                    "__hostBusEmit",
+                    Func::new(move |channel: String, payload: String| {
+                        let pv = serde_json::from_str(&payload).unwrap_or(JsonValue::Null);
+                        let _ = app_bus.emit(
+                            "widget-bus",
+                            serde_json::json!({ "channel": channel, "payload": pv }),
+                        );
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
         }
 
         // 3. 用 JS shim 组装权限作用域 ctx（store/toast 走上面的宿主函数）。
@@ -296,6 +377,26 @@ fn create_sandbox(
                  error: (m) => __hostToast(m, 'error') };",
             );
         }
+        if perms.crypto {
+            // crypto 原语：md5/sha1/sha256 取 hex，base64/hex 双向编解码。
+            // 可失败的 op（b64decode/unhex）失败时抛错，交由 widget 捕获。
+            shim.push_str(
+                "var __cr = (op) => (s) => { var r = JSON.parse(__hostCrypto(op, String(s))); \
+                 if (!r.ok) throw new Error(r.error); return r.value; }; \
+                 __widgetCtx.crypto = { \
+                 md5: __cr('md5'), sha1: __cr('sha1'), sha256: __cr('sha256'), \
+                 b64encode: __cr('b64encode'), b64decode: __cr('b64decode'), \
+                 hex: __cr('hex'), unhex: __cr('unhex') };",
+            );
+        }
+        if perms.execute {
+            shim.push_str(
+                "__widgetCtx.execute = { \
+                 exec: (p, a, c) => Number(__hostExecExec(p, JSON.stringify(a||[]), c||'')), \
+                 base: () => __hostExecBase(), \
+                 exists: (path) => __hostFileExists(String(path)) };",
+            );
+        }
         if perms.download {
             shim.push_str(
                 "__widgetCtx.download = { \
@@ -304,7 +405,21 @@ fn create_sandbox(
                  writeText: (f, c) => Number(__hostWriteText(f, c)), \
                  dir: () => __hostDownloadDir(), \
                  status: () => JSON.parse(__hostDownloadStatus()), \
-                 cancel: (id) => __hostDownloadCancel(String(id)) };",
+                 cancel: (id) => __hostDownloadCancel(String(id)), \
+                 remove: (f) => __hostDownloadRemove(String(f)) };",
+            );
+        }
+        if perms.bus {
+            // 总线：emit 广播（走 __hostBusEmit）；on 订阅存到 __busChannels，
+            // 由前端 `widget-bus` 事件 → 沙箱 `dispatchBus` 方法回调分发。
+            shim.push_str(
+                "globalThis.__busChannels = {}; \
+                 __widgetCtx.bus = { \
+                 emit: (ch, p) => __hostBusEmit(String(ch), JSON.stringify(p === undefined ? null : p)), \
+                 on: (ch, cb) => { var key = String(ch); \
+                   (__busChannels[key] = __busChannels[key] || []).push(cb); \
+                   return () => { var arr = __busChannels[key]; if (arr) { \
+                     var i = arr.indexOf(cb); if (i >= 0) arr.splice(i, 1); } }; } };",
             );
         }
         ctx.eval::<(), _>(shim.as_str())
@@ -451,5 +566,62 @@ mod tests {
     fn missing_method_returns_error() {
         let w = sandbox_eval("registerWidget({ render(ctx) { return {}; } });");
         assert!(w.call("onDrop", &[]).is_err());
+    }
+
+    /// handleEvent 必须按文档契约 `(id, type, data, ctx)` 传入；ctx 必须是同一个 widgetCtx。
+    #[test]
+    fn handle_event_receives_args_in_documented_order() {
+        let w = sandbox_eval(
+            r#"
+            registerWidget({
+                render(ctx) { return { type: "row" }; },
+                handleEvent(id, type, data, ctx) {
+                    globalThis.__last = JSON.stringify(
+                        [id, type, data, ctx === globalThis.__widgetCtx]
+                    );
+                },
+            });
+            "#,
+        );
+        // 前端 args 顺序：id, type, data
+        w.call(
+            "handleEvent",
+            &[
+                serde_json::json!("inc"),
+                serde_json::json!("click"),
+                serde_json::json!(42),
+            ],
+        )
+        .unwrap();
+        w.context.with(|ctx| {
+            let last: String = ctx.globals().get("__last").unwrap();
+            assert_eq!(last, r#"["inc","click",42,true]"#);
+        });
+    }
+
+    /// onSettingChange 按契约 `(key, value, ctx)` 传入。
+    #[test]
+    fn on_setting_change_receives_ctx_last() {
+        let w = sandbox_eval(
+            r#"
+            registerWidget({
+                render(ctx) { return { type: "row" }; },
+                onSettingChange(key, value, ctx) {
+                    globalThis.__last = JSON.stringify(
+                        [key, value, ctx === globalThis.__widgetCtx]
+                    );
+                },
+            });
+            "#,
+        );
+        w.call(
+            "onSettingChange",
+            &[serde_json::json!("counter.step"), serde_json::json!(5)],
+        )
+        .unwrap();
+        w.context.with(|ctx| {
+            let last: String = ctx.globals().get("__last").unwrap();
+            assert_eq!(last, r#"["counter.step",5,true]"#);
+        });
     }
 }

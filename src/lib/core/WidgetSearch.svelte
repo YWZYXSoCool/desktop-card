@@ -1,12 +1,10 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import {
-        setActiveWidget,
-        waitReady,
-    } from "$lib/widgets/registry.svelte";
+    import { waitReady, MAIN_ID } from "$lib/widgets/registry.svelte";
     import type { WidgetDefinition } from "$lib/widgets/api/types";
     import { widgetMeta, type UseEntry } from "$lib/core/widgetMeta.svelte";
     import { widgetStore } from "$lib/core/settings";
+    import { openWidgetWindow } from "$lib/core/widgetWindows";
     import { fuzzySearch } from "./widgetSearch";
     import SearchBox from "./SearchBox.svelte";
 
@@ -22,10 +20,10 @@
         if (results.length > 0) selected = Math.min(selected, results.length - 1);
     });
 
-    /** 选中 widget：记录历史 → 切换 → 关闭搜索。 */
+    /** 选中 widget：记录历史 → 在独立窗口打开（主页已在主卡片，直接关闭）。 */
     function choose(w: WidgetDefinition) {
         widgetMeta.record(w.manifest.id);
-        setActiveWidget(w.manifest.id);
+        if (w.manifest.id !== MAIN_ID) void openWidgetWindow(w.manifest.id);
         onclose();
     }
 

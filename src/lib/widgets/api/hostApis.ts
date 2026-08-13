@@ -1,5 +1,6 @@
 import { toast } from "svelte-sonner";
 import { widgetStore } from "$lib/core/settings";
+import * as bus from "$lib/core/widgetBus";
 import type { HostApis } from "./context";
 
 /**
@@ -11,5 +12,9 @@ export const hostApis: HostApis = {
     toast: {
         info: (msg) => toast(msg),
         error: (msg) => toast.error(msg),
+    },
+    bus: {
+        emit: (channel, payload) => bus.emit(channel, payload),
+        on: (channel, cb) => bus.on(channel, cb),
     },
 };

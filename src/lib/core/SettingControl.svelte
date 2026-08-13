@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { open } from "@tauri-apps/plugin-dialog";
     import type { WidgetSetting } from "./types";
 
     /** 可读写设置项（排除纯展示的分隔组）。 */
@@ -20,6 +21,21 @@
             return `${Math.round(n * 100)}%`;
         }
         return String(n);
+    }
+
+    /** 目录选择：原生对话框选文件夹，取消则不改动当前值。 */
+    async function pickFolder() {
+        const startDir =
+            s.type === "folder" ? s.startDir : undefined;
+        const chosen = await open({
+            directory: true,
+            multiple: false,
+            defaultPath: String(value ?? s.default) || startDir || undefined,
+            title: "选择输出目录",
+        });
+        if (typeof chosen === "string" && chosen) {
+            onchange(chosen);
+        }
     }
 </script>
 
@@ -108,6 +124,17 @@
                 onchange((e.target as HTMLTextAreaElement).value)}
             aria-label={s.label}
         ></textarea>
+    {:else if s.type === "folder"}
+        <button
+            type="button"
+            class="folder"
+            onclick={() => pickFolder()}
+            title={String(value ?? s.default ?? "")}
+            aria-label={s.label}
+        >
+            <span class="folder-path">{String(value ?? s.default ?? "")}</span>
+            <span class="folder-btn">选择…</span>
+        </button>
     {/if}
 </div>
 
@@ -189,6 +216,47 @@
         border-radius: 6px;
         background: var(--bg-panel);
         cursor: pointer;
+    }
+
+    .folder {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 220px;
+        padding: 4px 4px 4px 8px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        background: var(--bg-panel);
+        color: var(--text);
+        font-size: 12px;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .folder:focus {
+        border-color: var(--accent);
+    }
+
+    .folder-path {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-muted);
+    }
+
+    .folder-btn {
+        flex: none;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: var(--accent);
+        color: var(--on-accent);
+        font-size: 12px;
+    }
+
+    .folder:hover .folder-btn {
+        background: var(--accent-2);
     }
 
     .row.stack {

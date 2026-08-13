@@ -5,6 +5,7 @@ import { definition as clipboard } from "./clipboard";
 import { definition as countdown } from "./countdown";
 import { definition as dictionary } from "./dictionary";
 import { definition as home } from "./home";
+import { definition as screenshot } from "./screenshot";
 import { definition as todo } from "./todo";
 import type { WidgetDefinition } from "./api/types";
 
@@ -17,4 +18,5 @@ export const builtinWidgets: WidgetDefinition[] = [
     clipboard,
     dictionary,
     countdown,
+    screenshot,
 ];

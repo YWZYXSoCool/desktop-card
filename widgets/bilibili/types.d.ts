@@ -75,7 +75,7 @@ export interface WidgetContext {
  * 交互经 `on` 上的事件 id 回调沙箱 `handleEvent`，随后重调 `render()` 刷新。
  */
 export interface UINode {
-    /** 节点类型：row|column|stack|box|spacer|text|button|input|number|toggle|select|slider|color|textarea|image */
+    /** 节点类型：row|column|stack|box|spacer|text|button|input|number|toggle|select|slider|color|textarea|image|search|date|time|checkbox|radio|badge|divider|card|progress|link|icon|avatar|field */
     type: string;
     /** 各类型专属属性：text=value、button=label、input/toggle=value/checked、select=options、image=src … */
     props?: Record<string, unknown>;
@@ -101,6 +101,7 @@ export type WidgetSettingType =
     | "number"
     | "color"
     | "textarea"
+    | "folder"
     | "section";
 
 /** 选项框（select）的单个选项。 */
@@ -165,6 +166,13 @@ export interface TextareaSetting extends SettingBase {
     placeholder?: string;
 }
 
+export interface FolderSetting extends SettingBase {
+    type: "folder";
+    default: string;
+    /** 目录对话框的起始目录（缺省为当前目录）。 */
+    startDir?: string;
+}
+
 /**
  * 设置分隔组（纯展示，无值、不持久化）：把设置面板按组切分，`name` 为组标题。
  * 放在 settings 数组里任意位置，渲染为一个小标题 + 分隔。
@@ -184,6 +192,7 @@ export type WidgetSetting =
     | NumberSetting
     | ColorSetting
     | TextareaSetting
+    | FolderSetting
     | SectionSetting;
 
 /**

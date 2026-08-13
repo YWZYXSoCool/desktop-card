@@ -1,13 +1,30 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { cubicOut } from "svelte/easing";
     import { fade } from "svelte/transition";
-    import { X } from "lucide-svelte";
+    import { Pin, Settings, X } from "lucide-svelte";
+
+    /** 窗口出现动效：轻微从 96% 放大 + 淡入，cubicOut 缓出。 */
+    function windowIn(
+        _node: Element,
+        { duration = 220 }: { duration?: number } = {},
+    ) {
+        return {
+            duration,
+            easing: cubicOut,
+            css: (t: number) =>
+                `opacity: ${t}; transform: scale(${0.96 + 0.04 * t});`,
+        };
+    }
 
     let {
         title = "",
         draggable = true,
         dragOver = false,
         dropHint = "",
+        pinned = false,
+        onPin,
+        onSettings,
         onClose,
         children,
     }: {
@@ -22,6 +39,12 @@
         dragOver?: boolean;
         /** 拖拽悬停时显示的提示文案（由当前 widget 提供） */
         dropHint?: string;
+        /** 钉住状态（面板模式顶部标题栏显示钉住按钮时） */
+        pinned?: boolean;
+        /** 钉住按钮动作（面板模式；缺省不显示钉住按钮） */
+        onPin?: () => void;
+        /** 设置按钮动作（面板模式；缺省不显示设置按钮） */
+        onSettings?: () => void;
         /** 关闭按钮动作（widget 卡片为收进托盘，面板为关闭窗口） */
         onClose: () => void;
         children: Snippet;
@@ -33,6 +56,7 @@
     class:headed={!!title}
     class:noninteractive={draggable}
     class:drag-over={dragOver}
+    transition:windowIn
 >
     {#if draggable}
         <!-- 底层拖拽区：移动整窗。内容层 pointer-events:none，点击穿透到这里 -->
@@ -42,7 +66,38 @@
     {#if title}
         <header class="head" data-tauri-drag-region>
             <span class="title">{title}</span>
+            <span class="actions">
+                {#if onSettings}
+                    <button
+                        class="act"
+                        onclick={onSettings}
+                        aria-label="设置"
+                        title="设置"
+                    >
+                        <Settings size={12} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                {/if}
+                {#if onPin}
+                    <button
+                        class="act"
+                        class:active={pinned}
+                        onclick={onPin}
+                        aria-label={pinned ? "取消钉住" : "钉住"}
+                        title={pinned ? "取消钉住" : "钉住"}
+                    >
+                        <Pin size={12} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                {/if}
+                <!-- 面板模式：关闭按钮收进标题栏动作区 -->
+                <button class="act" onclick={onClose} aria-label="关闭" title="关闭">
+                    <X size={12} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+            </span>
         </header>
+    {:else}
+        <button class="close" onclick={onClose} aria-label="关闭" title="关闭">
+            <X size={10} strokeWidth={2.4} aria-hidden="true" />
+        </button>
     {/if}
 
     {#if dragOver}
@@ -50,10 +105,6 @@
             {dropHint || "松开"}
         </div>
     {/if}
-
-    <button class="close" onclick={onClose} aria-label="关闭" title="关闭">
-        <X size={10} strokeWidth={2.4} aria-hidden="true" />
-    </button>
 
     <div class="content">
         {@render children()}
@@ -97,17 +148,65 @@
         z-index: 0;
     }
 
-    /* 标题栏：整行可拖拽移动窗口 */
+    /* 标题栏：整行可拖拽移动窗口（面板模式唯一的拖拽把手，加高便于抓取） */
     .head {
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         flex: none;
+        min-height: 30px;
+        cursor: grab;
+    }
+
+    .head:active {
+        cursor: grabbing;
     }
 
     .head .title {
         font-size: 13px;
         font-weight: 600;
         color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .head .actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex: none;
+    }
+
+    .head .act {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition:
+            color 150ms ease,
+            background 150ms ease;
+    }
+
+    .head .act:hover {
+        color: var(--text);
+        background: var(--hover-strong);
+    }
+
+    .head .act:active {
+        transform: scale(0.85);
+    }
+
+    .head .act.active {
+        color: var(--accent);
     }
 
     .content {

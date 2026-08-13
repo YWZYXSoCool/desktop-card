@@ -113,6 +113,7 @@ src-tauri/src/sandbox.rs       # 外部 widget 的 QuickJS 沙箱（worker 线�
 | `todo.doneToBottom` | false | 已完成置底 |
 | `unit.decimals` | "auto" | 结果小数位（auto/0–6） |
 | `download.dir` | "%USERPROFILE%\\Downloads" | 外部下载类 widget 的下载目录（如 B站下载） |
+| `theme.accent` | "blue" | 主题色预设（blue/purple/teal/green/orange/red/pink/gold） |
 | `autostart.enabled` | false | 与系统注册状态保持同步 |
 
 ## Recommended IDE Setup

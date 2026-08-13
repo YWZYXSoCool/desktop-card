@@ -1,17 +1,24 @@
 <script lang="ts">
-    import { File, Folder, Image as ImageIcon, Pin, Trash2 } from "lucide-svelte";
+    import {
+        File,
+        Folder,
+        Image as ImageIcon,
+        Pin,
+        Trash2,
+    } from "lucide-svelte";
     import { basename } from "pathe";
     import type { ClipboardItem } from "./clipboard.svelte";
 
     interface Props {
         item: ClipboardItem;
         pinned: boolean;
+        copied: boolean;
         oncopy: () => void;
         ondelete: () => void;
         onpin: () => void;
     }
 
-    let { item, pinned, oncopy, ondelete, onpin }: Props = $props();
+    let { item, pinned, copied, oncopy, ondelete, onpin }: Props = $props();
 
     /** 相对时间：刚刚 / N分钟前 / N小时前 / N天前。 */
     function ago(ts: number): string {
@@ -99,19 +106,25 @@
             <span class="text-preview file-names">{preview(item)}</span>
         {/if}
     </span>
-    <span class="time">{ago(item.timestamp)}</span>
+    {#if copied}
+        <span class="copied">✓ 已复制</span>
+    {:else}
+        <span class="time">{ago(item.timestamp)}</span>
+    {/if}
 </div>
 
 <style>
     .row {
         /* 内容层 pointer-events:none，需在控件上恢复 */
         pointer-events: auto;
+        width: 100%;
         display: flex;
         align-items: center;
         gap: 6px;
         padding: 4px 6px;
         border-radius: 6px;
         cursor: copy;
+        overflow-x: hidden;
     }
 
     .row:hover {
@@ -160,10 +173,17 @@
         color: var(--text-dim);
     }
 
+    .copied {
+        flex: none;
+        font-size: 10px;
+        color: var(--accent);
+    }
+
     .pin {
         pointer-events: auto;
         flex: none;
-        width: 18px;
+        /* 收起时宽度为 0 且 margin 为负抵消 flex gap，不占位置；悬浮/固定时展开 */
+        width: 0;
         height: 18px;
         display: flex;
         align-items: center;
@@ -175,13 +195,20 @@
         color: var(--text-muted);
         cursor: pointer;
         opacity: 0;
+        margin-right: -6px;
+        overflow: hidden;
         transition:
+            width 150ms ease,
             opacity 150ms ease,
+            margin-right 150ms ease,
             color 150ms ease;
     }
 
-    .row:hover .pin {
+    .row:hover .pin,
+    .pin.active {
+        width: 18px;
         opacity: 1;
+        margin-right: 0;
     }
 
     .pin:hover {
@@ -189,7 +216,6 @@
     }
 
     .pin.active {
-        opacity: 1;
         color: var(--accent);
     }
 
@@ -200,7 +226,7 @@
     .del {
         pointer-events: auto;
         flex: none;
-        width: 18px;
+        width: 0;
         height: 18px;
         display: flex;
         align-items: center;
@@ -212,13 +238,19 @@
         color: var(--text-muted);
         cursor: pointer;
         opacity: 0;
+        margin-right: -6px;
+        overflow: hidden;
         transition:
+            width 150ms ease,
             opacity 150ms ease,
+            margin-right 150ms ease,
             color 150ms ease;
     }
 
     .row:hover .del {
+        width: 18px;
         opacity: 1;
+        margin-right: 0;
     }
 
     .del:hover {
