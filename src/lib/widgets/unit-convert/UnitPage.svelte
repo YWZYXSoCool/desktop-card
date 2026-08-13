@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import { createCopyFeedback } from "$lib/core/copyFeedback.svelte";
     import ConvertRow from "./ConvertRow.svelte";
     import { fmt } from "./conversions";
     import type { Unit } from "./conversions";

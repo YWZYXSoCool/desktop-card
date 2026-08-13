@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import { createCopyFeedback } from "$lib/core/copyFeedback.svelte";
     import ConvertRow from "./ConvertRow.svelte";
 
     /** 合法数字字符集（按基数截取 0-f）。 */

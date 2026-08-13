@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createCopyFeedback } from "$lib/core/copyFeedback";
+    import { createCopyFeedback } from "$lib/core/copyFeedback.svelte";
     import ColorField from "./ColorField.svelte";
     import ColorTop from "./ColorTop.svelte";
     import Palette from "./Palette.svelte";
