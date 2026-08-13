@@ -19,7 +19,7 @@
     import { requestColorPick } from "$lib/widgets/color/pickSignal.svelte";
     import WidgetSearch from "./WidgetSearch.svelte";
     import Window from "./Window.svelte";
-    import { getMenuEntries, registerMenuEntry } from "./menu.svelte";
+    import { getMenuEntries } from "./menu.svelte";
     import { debounce, restorePosition, watchMoved } from "./window";
     import { checkForUpdate, openUpdateToast } from "./update";
     import {
@@ -38,10 +38,13 @@
     /** 把已注册菜单项交给 Rust 弹出原生系统菜单（取色项 + widget 功能平铺）。
      *  `screenX`/`screenY` 为全局鼠标钩子上报的屏幕物理坐标。 */
     async function showCardMenu(screenX: number, screenY: number) {
-        const items = getMenuEntries().map((it) => ({
-            id: it.id,
-            label: it.label,
-        }));
+        // 只收 widget 注册的功能（host 系统项不进中键菜单），并用括号标注来源
+        const items = getMenuEntries()
+            .filter((it) => it.widget !== "host")
+            .map((it) => ({
+                id: it.id,
+                label: `${it.label}（${it.widget}）`,
+            }));
         await invoke("show_card_menu", {
             widgetItems: items,
             x: screenX,
@@ -163,9 +166,6 @@
 
         // 窗口移动 → 防抖保存位置
         track(watchMoved((x, y) => persistPosition(x, y)));
-
-        // 右键菜单「检查更新」：手动重查新版本
-        unlisteners.push(registerMenuEntry("host", "检查更新", () => void checkUpdate()));
 
         // 文件拖拽：enter/over 高亮，drop 交给当前 widget 判定/处理，leave 复位
         track(
