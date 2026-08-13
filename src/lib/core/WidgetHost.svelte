@@ -6,7 +6,6 @@
     import { getCurrentWebview } from "@tauri-apps/api/webview";
     import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
     import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-    import { openUrl } from "@tauri-apps/plugin-opener";
     import { toast } from "svelte-sonner";
     import {
         activeWidget,
@@ -22,6 +21,7 @@
     import Window from "./Window.svelte";
     import { getMenuEntries, registerMenuEntry } from "./menu.svelte";
     import { debounce, restorePosition, watchMoved } from "./window";
+    import { checkForUpdate, openUpdateToast } from "./update";
     import {
         applyAutostart,
         loadCoreSettings,
@@ -75,66 +75,10 @@
         win.once("tauri://error", () => toast("无法打开设置窗口"));
     }
 
-    /** 更新检查结果（对应 Rust `update.rs` 的 UpdateInfo）。 */
-    interface UpdateInfo {
-        updateAvailable: boolean;
-        currentVersion: string;
-        latestVersion: string;
-        assetName: string | null;
-        assetUrl: string | null;
-        releaseUrl: string;
-    }
-
-    /** 请求检查更新；有更新则弹提示。网络失败静默（不打扰）。 */
+    /** 请求检查更新；有更新则弹 toast。网络失败静默（不打扰）。 */
     async function checkUpdate(): Promise<void> {
-        try {
-            const u = await invoke<UpdateInfo>("check_for_update");
-            if (u.updateAvailable) showUpdateToast(u);
-        } catch {
-            // 静默：占位仓库 / 无网络时不打扰用户
-        }
-    }
-
-    /** 有新版本：toast + 操作按钮（下载安装；找不到安装包则退化打开 Releases 页）。 */
-    function showUpdateToast(u: UpdateInfo) {
-        const label = `下载并安装 v${u.latestVersion}`;
-        if (u.assetUrl) {
-            toast(`发现新版本 v${u.latestVersion}`, {
-                action: { label, onClick: () => startDownload(u) },
-                duration: 20000,
-            });
-        } else {
-            toast(`发现新版本 v${u.latestVersion}`, {
-                action: {
-                    label: "打开 Releases 页",
-                    onClick: () => openUrl(u.releaseUrl).catch(() => {}),
-                },
-                duration: 20000,
-            });
-        }
-    }
-
-    /** 下载安装包：loading toast + 进度更新，成功后 Rust 侧启动安装器并退出主程序。 */
-    async function startDownload(u: UpdateInfo) {
-        const id = toast.loading(`正在下载 v${u.latestVersion}…`);
-        const unlisten = await listen<{ received: number; total: number }>(
-            "update-download-progress",
-            (e) => {
-                const { received, total } = e.payload;
-                const mb = (b: number) => (b / 1024 / 1024).toFixed(1);
-                const text = total
-                    ? `正在下载 v${u.latestVersion}… ${Math.round((received / total) * 100)}% (${mb(received)}/${mb(total)} MB)`
-                    : `正在下载 v${u.latestVersion}… ${mb(received)} MB`;
-                toast(text, { id });
-            },
-        );
-        try {
-            await invoke("download_and_install", { assetUrl: u.assetUrl });
-            toast.success("更新已下载，正在安装…", { id });
-        } catch (e) {
-            unlisten();
-            toast.error(`下载失败：${String(e)}`, { id });
-        }
+        const u = await checkForUpdate();
+        if (u) openUpdateToast(u);
     }
 
     /** 切换动画：轻微缩放 + 淡入淡出，cubicOut 缓出，避免切换突兀。 */

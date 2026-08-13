@@ -9,7 +9,14 @@
         CloudRain,
         CloudSnow,
         CloudLightning,
+        CircleArrowUp,
     } from "lucide-svelte";
+    import { getVersion } from "@tauri-apps/api/app";
+    import {
+        checkForUpdate,
+        startUpdateDownload,
+        type UpdateInfo,
+    } from "$lib/core/update";
     import { getTheme, toggleTheme } from "$lib/core/theme.svelte";
 
     // 所有 lucide 图标出自同一工厂，类型一致，用 Sun 作代表即可
@@ -156,6 +163,16 @@
         const id = setInterval(() => void fetchWeather(), 10 * 60 * 1000);
         return () => clearInterval(id);
     });
+
+    // 左下角：应用版本号 + 有更新时显示更新图标（仅挂载时检查一次）
+    let version = $state("");
+    let update = $state<UpdateInfo | null>(null);
+    $effect(() => {
+        void getVersion()
+            .then((v) => (version = v))
+            .catch(() => {});
+        void checkForUpdate().then((u) => (update = u));
+    });
 </script>
 
 <div class="home">
@@ -191,6 +208,25 @@
             天气 —
         </div>
     {/if}
+
+    <!-- 左下角版本号 + 更新提示（卡片内容层 pointer-events:none，交互按钮需恢复） -->
+    <div class="meta">
+        {#if version}
+            <span class="version">v{version}</span>
+        {/if}
+        {#if update}
+            {@const u = update}
+            <button
+                type="button"
+                class="update"
+                onclick={() => startUpdateDownload(u)}
+                aria-label={`更新到 v${u.latestVersion}`}
+                title={`更新到 v${u.latestVersion}`}
+            >
+                <CircleArrowUp size={12} aria-hidden="true" />
+            </button>
+        {/if}
+    </div>
 
     <!-- 右下角明暗主题切换（卡片模式内容层 pointer-events:none，需恢复） -->
     <button
@@ -251,6 +287,46 @@
 
     .weather.muted {
         color: var(--text-dim);
+    }
+
+    .meta {
+        position: absolute;
+        left: 8px;
+        bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        pointer-events: none; /* 非交互区穿透，避免挡住卡片拖动 */
+    }
+
+    .version {
+        font-size: 10px;
+        color: var(--text-dim);
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+    }
+
+    .update {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: none;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--accent, #4c9aff);
+        cursor: pointer;
+        transition:
+            color 150ms ease,
+            background 150ms ease;
+    }
+
+    .update:hover {
+        color: var(--text);
+        background: var(--hover);
     }
 
     .theme-toggle {
