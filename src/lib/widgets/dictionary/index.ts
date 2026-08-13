@@ -2,9 +2,14 @@ import manifest from "./widget.json";
 import DictionaryCard from "./DictionaryCard.svelte";
 import { defineWidget } from "$lib/widgets/api/defineWidget";
 import { setActiveWidget } from "$lib/widgets/registry.svelte";
-import type { WidgetContext, WidgetManifest, WidgetSetting } from "$lib/widgets/api/types";
+import type {
+    WidgetContext,
+    WidgetManifest,
+    WidgetSetting,
+} from "$lib/widgets/api/types";
 import { clipboard } from "$lib/widgets/clipboard/clipboard.svelte";
 import { dict, readConfigFromStore } from "./dictionary.svelte";
+import type { HistoryEntry } from "./dictionary.svelte";
 
 /** 英英释义查询的设置项（单一来源，注入 manifest.settings，设置页据此渲染）。 */
 const settings: WidgetSetting[] = [
@@ -73,7 +78,14 @@ const settings: WidgetSetting[] = [
  * 注册卡片右键菜单项：一键跳转到词典 widget 查询“当前选中文本”的释义。
  * 长按中键已把前台窗口选中文本复制进剪贴板，动作在卡片窗口执行，读取最新剪贴板文本后切卡并直接发起查询。
  */
-function setup(ctx: WidgetContext): void {
+async function setup(ctx: WidgetContext): Promise<void> {
+    // 恢复持久化的搜索历史与收藏（余下由组件负责读写）
+    const [history, favorites] = await Promise.all([
+        ctx.store!.get<Record<string, HistoryEntry>>("dict.history", {}),
+        ctx.store!.get<string[]>("dict.favorites", []),
+    ]);
+    dict.loadMeta(history, favorites);
+
     ctx.menu?.add("查询选中文本释义", () => {
         void (async () => {
             try {

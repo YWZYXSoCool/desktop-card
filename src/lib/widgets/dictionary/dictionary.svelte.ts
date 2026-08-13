@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { WidgetStore } from "$lib/widgets/api/types";
+import { fuzzyScore } from "$lib/core/fuzzy";
 
 /** 查询渠道配置（设置项镜像，与 store 持久化键对应）。 */
 export interface DictConfig {
@@ -286,14 +287,91 @@ function normalizeEntries(arr: unknown): ApiEntry[] {
     });
 }
 
+/* ============================ 历史 & 收藏 ============================ */
+
+/** 一条搜索历史：次数 + 最近查询时间。 */
+export interface HistoryEntry {
+    count: number;
+    lastAt: number;
+}
+
+/**
+ * 从历史 + 收藏构建建议列表。
+ * 空输入 → 按最近搜索排序；有输入 → 模糊命中过滤。
+ * 排序：收藏优先 → 最近搜索 → 字母序。
+ */
+function buildSuggestions(
+    q: string,
+    history: Record<string, HistoryEntry>,
+    favorites: string[],
+): string[] {
+    const lower = q.toLowerCase();
+    const pool = new Set([...Object.keys(history), ...favorites]);
+    const items = [...pool].map((w) => {
+        const h = history[w];
+        return {
+            w,
+            isFav: favorites.includes(w),
+            count: h?.count ?? 0,
+            lastAt: h?.lastAt ?? 0,
+            score: lower ? fuzzyScore(w, lower) : 0,
+        };
+    });
+    const filtered = lower ? items.filter((x) => x.score >= 0) : items;
+    filtered.sort(
+        (a, b) =>
+            Number(b.isFav) - Number(a.isFav) ||
+            b.lastAt - a.lastAt ||
+            a.w.localeCompare(b.w),
+    );
+    return filtered.slice(0, 6).map((x) => x.w);
+}
+
 /* ============================ Store 状态 ============================ */
 
-/** 词典 widget 的可变状态：当前词 + 结果 + 加载/错误。 */
+/** 词典 widget 的可变状态：当前词 + 结果 + 加载/错误 + 历史 + 收藏。 */
 class DictStore {
     word = $state("");
     result = $state<DictResult | null>(null);
     loading = $state(false);
     error = $state("");
+
+    history = $state<Record<string, HistoryEntry>>({});
+    favorites = $state<string[]>([]);
+
+    /** 启动时用持久化的历史 + 收藏填充。 */
+    loadMeta(history: Record<string, HistoryEntry>, favorites: string[]): void {
+        this.history = history;
+        this.favorites = favorites;
+    }
+
+    /** 记录一次成功查询：次数 +1、时间更新。 */
+    record(word: string): void {
+        const w = word.trim().toLowerCase();
+        if (!w) return;
+        const prev = this.history[w] ?? { count: 0, lastAt: 0 };
+        this.history = {
+            ...this.history,
+            [w]: { count: prev.count + 1, lastAt: Date.now() },
+        };
+    }
+
+    /** 切换某词的收藏状态。 */
+    toggleFavorite(word: string): void {
+        const w = word.trim().toLowerCase();
+        this.favorites = this.favorites.includes(w)
+            ? this.favorites.filter((x) => x !== w)
+            : [...this.favorites, w];
+    }
+
+    isFavorite(word: string): boolean {
+        return this.favorites.includes(word.trim().toLowerCase());
+    }
+
+    /** 当前输入对应的建议列表（历史 + 收藏，收藏优先、按最近搜索排序）。 */
+    suggestions(): string[] {
+        return buildSuggestions(this.word, this.history, this.favorites);
+    }
 
     /** 按当前输入词发起查询（渠道/参数来自设置）。错误落到 error，不抛出。 */
     async lookup(cfg: DictConfig): Promise<void> {

@@ -7,6 +7,7 @@
         setActiveWidget,
     } from "$lib/widgets/registry.svelte";
     import type { WidgetDefinition } from "$lib/widgets/api/types";
+    import { fuzzyScore } from "$lib/core/fuzzy";
 
     let { onclose }: { onclose: () => void } = $props();
 
@@ -17,26 +18,6 @@
 
     const results = $derived(fuzzySearch(query.trim()));
 
-    /**
-     * 对 name / id / keywords 逐个做子序列模糊打分，取最高分；无匹配返回 -1。
-     * 分数 = 命中字符数 - 跳过的字符数（连续命中得分更高）。
-     */
-    function scoreText(text: string, needle: string): number {
-        if (!needle) return 0;
-        let score = 0;
-        let skip = 0;
-        let from = 0;
-        const lower = text.toLowerCase();
-        for (let i = 0; i < needle.length; i++) {
-            const idx = lower.indexOf(needle[i], from);
-            if (idx < 0) return -1;
-            if (idx > from) skip += 1;
-            score += 1;
-            from = idx + 1;
-        }
-        return score - skip;
-    }
-
     function fuzzySearch(q: string): WidgetDefinition[] {
         const list = getWidgets();
         if (!q) return list;
@@ -45,9 +26,9 @@
             .map((w) => ({
                 w,
                 score: Math.max(
-                    scoreText(w.manifest.name, needle),
-                    scoreText(w.manifest.id, needle),
-                    ...w.manifest.keywords.map((k) => scoreText(k, needle)),
+                    fuzzyScore(w.manifest.name, needle),
+                    fuzzyScore(w.manifest.id, needle),
+                    ...w.manifest.keywords.map((k) => fuzzyScore(k, needle)),
                 ),
             }))
             .filter((x) => x.score >= 0)
