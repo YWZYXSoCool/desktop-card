@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "svelte-sonner";
+import { widgetStore } from "./settings";
 
 /** 更新检查结果（对应 Rust `update.rs` 的 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -13,10 +14,20 @@ export interface UpdateInfo {
     releaseUrl: string;
 }
 
+/** 读取用户配置的 GitHub 代理前缀（主页「系统」设置的 `update.proxy`，空则直连）。 */
+async function loadProxy(): Promise<string> {
+    try {
+        return String((await widgetStore.get("update.proxy", "")) ?? "").trim();
+    } catch {
+        return "";
+    }
+}
+
 /** 请求检查更新；有更新返回 UpdateInfo，无更新 / 网络失败 / 解析失败返回 null（静默）。 */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
     try {
-        const u = await invoke<UpdateInfo>("check_for_update");
+        const proxy = await loadProxy();
+        const u = await invoke<UpdateInfo>("check_for_update", { proxy });
         return u.updateAvailable ? u : null;
     } catch {
         return null;

@@ -81,6 +81,13 @@ const settings = [
         default: "ctrl+alt+space",
         placeholder: "如 ctrl+alt+space",
     },
+    {
+        key: "update.proxy",
+        label: "更新代理前缀",
+        type: "text" as const,
+        default: "",
+        placeholder: "如 https://ghproxy.net/，留空直连",
+    },
 ] satisfies WidgetSetting[];
 
 export const definition = defineWidget({

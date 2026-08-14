@@ -9,6 +9,10 @@ jobs:
   check:
     name: 类型检查 + Rust 测试
     runs-on: windows-latest
+    env:
+      # 用 sccache 缓存 Rust 编译产物（后端走 GitHub Actions 共享缓存，跨多次 run 复用），
+      # 大幅减少重复编译 test/clippy 的耗时。
+      RUSTC_WRAPPER: sccache
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +29,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      # sccache：安装并接入 GitHub Actions 缓存（配合上方 RUSTC_WRAPPER env 生效）
+      - uses: mozilla-actions/sccache-action@v0.0.7
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'

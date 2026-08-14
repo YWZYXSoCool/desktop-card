@@ -33,9 +33,10 @@ export function toggleTheme(): void {
 
 /**
  * 监听其他窗口的主题变更事件，同步到本窗内存（每个窗口是独立 webview，
- * 模块级 $state 不共享，需经事件联动）。返回取消监听函数，随布局卸载调用。
+ * 模块级 $state 不共享，需经事件联动）。返回取消监听的 Promise（`listen` 的
+ * `UnlistenFn`），随布局卸载时 `.then` 调用以解除监听。
  */
-export function listenThemeChanges(): () => void {
+export function listenThemeChanges(): Promise<() => void> {
     return listen("desktop-card:theme-changed", (e) => {
         mode = e.payload === "light" ? "light" : "dark";
     });

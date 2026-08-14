@@ -52,6 +52,11 @@ npm run tauri build    # 发布构建（msi / nsis 安装包见 src-tauri/target
 npm run check          # svelte-check 类型检查
 ```
 
+> **sccache 编译缓存（可选，推荐）**：本地装 [sccache](https://github.com/mozilla/sccache) 并按
+> `E:\\.cargo\\config.toml` 里的注释接入后，重复构建 Rust 更快。CI 已内置：`.github/workflows/`
+> 的 check / release 流程用 `mozilla-actions/sccache-action` 走 GitHub Actions 共享缓存，
+> 跨多次 run 复用编译产物。
+
 ## 项目结构
 
 ```

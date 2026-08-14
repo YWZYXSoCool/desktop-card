@@ -177,6 +177,8 @@ fn toggle_window(app: &AppHandle, open_search: bool) {
         } else {
             let _ = win.show();
             let _ = win.set_focus();
+            // Windows 下 hide → show 后常会丢失 always-on-top，显示时重新置顶
+            let _ = win.set_always_on_top(true);
             if open_search {
                 let _ = app.emit("open-search", ());
             }
@@ -382,6 +384,11 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // 确保主卡片常驻置顶（配置里已设，这里再显式保证一次，防个别机器不生效）
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.set_always_on_top(true);
+            }
 
             Ok(())
         })

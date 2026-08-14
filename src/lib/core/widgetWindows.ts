@@ -39,27 +39,34 @@ export async function openSettingsWindow(widgetId: string): Promise<void> {
     win.once("tauri://error", () => toast("无法打开设置窗口"));
 }
 
-/** 实例窗口计数器：每次从主页打开一个 widget 就新建一个独立窗口（多实例/多卡片）。 */
-let instCounter = 0;
-
 /**
- * 在主页卡片点某个 widget → 新建一个独立 widget 窗口（多实例）。
+ * 打开（或聚焦已存在的）某 widget 的独立窗口：每个 widget 至多一个，重复打开复用已有窗口。
  * 窗口大小 = widget 内容尺寸 + 标题栏 + 四周内边距。钉住逻辑在 WidgetWindow 内。
  */
 export async function openWidgetWindow(widgetId: string): Promise<void> {
     const w = findWidget(widgetId);
     if (!w) return;
-    instCounter += 1;
-    const label = `widget-${widgetId}-${instCounter}`;
+    const label = `widget-${widgetId}`;
+    const existing = await WebviewWindow.getByLabel(label);
+    if (existing) {
+        await existing.show();
+        await existing.setFocus();
+        return;
+    }
     const s = w.manifest.size;
     const win = new WebviewWindow(label, {
-        url: `/?mode=widget&widget=${widgetId}&inst=${instCounter}`,
+        url: `/?mode=widget&widget=${widgetId}`,
         title: w.manifest.name,
         width: s.width + CONTENT_PADDING * 2,
         height: s.height + HEADER_HEIGHT + CONTENT_PADDING * 2,
+        // 统一挂到主卡片（main）下：所有 widget 窗口互为兄弟，不互相持有。
+        // 否则从某个 widget 窗口内 Ctrl+F 再开一个时，新窗口会成为它的子窗口，
+        // 关闭父窗口会连带关闭子窗口（Tauri 的窗口所有权）——即「关一个其他也没」。
+        parent: "main",
         resizable: false,
-        // 与主卡片一致的观感：无边框、透明、无阴影、置顶、不进任务栏
-        alwaysOnTop: true,
+        // 与主卡片一致的观感：无边框、透明、无阴影、不进任务栏。
+        // 默认不置顶；钉住后才置顶（WidgetWindow 内 togglePin 调 setAlwaysOnTop）。
+        alwaysOnTop: false,
         decorations: false,
         transparent: true,
         shadow: false,

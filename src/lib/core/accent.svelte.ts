@@ -99,9 +99,10 @@ export function setAccent(key: string): void {
 
 /**
  * 监听其他窗口的主题色变更事件，同步到本窗内存（每个窗口是独立 webview，
- * 模块级 $state 不共享，需经事件联动）。返回取消监听函数，随布局卸载调用。
+ * 模块级 $state 不共享，需经事件联动）。返回取消监听的 Promise（`listen` 的
+ * `UnlistenFn`），随布局卸载时 `.then` 调用以解除监听。
  */
-export function listenAccentChanges(): () => void {
+export function listenAccentChanges(): Promise<() => void> {
     return listen("desktop-card:accent-changed", (e) => {
         const key = e.payload as string;
         if (ACCENTS[key]) accentKey = key;

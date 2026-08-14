@@ -12,7 +12,7 @@
     import { openSettingsWindow } from "./widgetWindows";
 
     /**
-     * 独立 widget 窗口宿主（`?mode=widget&widget=<id>&inst=<n>`）。
+     * 独立 widget 窗口宿主（`?mode=widget&widget=<id>`，每 widget 至多一个窗口）。
      * 顶部标题栏：设置 / 钉住 / 关闭。位置按 widget 记忆（多显示器越界回落居中）。
      */
 
@@ -39,6 +39,8 @@
 
     function togglePin() {
         pinned = !pinned;
+        // 钉住 ⇄ 置顶：真正切换窗口的 always-on-top（而非仅视觉高亮）
+        win.setAlwaysOnTop(pinned).catch(() => {});
         widgetStore
             .set(`window.widget.${widgetId}.pinned`, pinned)
             .catch(() => {});
@@ -61,6 +63,9 @@
         const w = widget;
         if (!el || !w) return;
         const ctx = createWidgetContext(w.manifest, hostApis);
+        // 独立窗口也要跑 setup：剪贴板等 widget 靠 setup 拉历史 + 订阅宿主广播，
+        // 否则多开窗口里历史为空且不随复制实时更新（与 WidgetHost 的启动回调对齐）。
+        Promise.resolve(w.setup?.(ctx)).catch(() => {});
         return w.render.mount(el, ctx);
     });
 
@@ -68,10 +73,13 @@
         // 等注册表就绪（内置 + 外部扫描），widget 定义就位后 $effect 自动挂载
         await waitReady();
 
-        // 钉住态恢复
+        // 钉住态恢复：置顶态随钉住态一起应用（窗口默认不置顶）
         widgetStore
             .get<boolean>(`window.widget.${widgetId}.pinned`, false)
-            .then((p) => (pinned = p))
+            .then((p) => {
+                pinned = p;
+                win.setAlwaysOnTop(p).catch(() => {});
+            })
             .catch(() => {});
 
         // 位置恢复（多显示器越界回落居中）

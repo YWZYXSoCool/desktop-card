@@ -2,6 +2,20 @@
 
 本文件记录本项目的显著变更。格式遵循 [Keep a Changelog]，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-08-14
+
+### 变更
+- **CI 接入 sccache**：check / release 流程用 `mozilla-actions/sccache-action` 走 GitHub Actions 共享缓存，跨多次 run 复用 Rust 编译产物，加速 test / clippy / 发版构建。
+- 新增仓库根目录 `latest-release.json` 版本清单，发布时与 Cargo.toml / tauri.conf.json / package.json / latest-release.json **四处**同步。
+- **widget 独立窗口默认不置顶**：新开的 widget 窗口默认随普通窗口层级、不挡其它应用，**钉住后才置顶**（标题栏图钉切换 setAlwaysOnTop，重启后恢复钉住态）。
+- **widget 独立窗口改为单开**：同一 widget 至多一个独立窗口，重复打开（搜索框选中）时聚焦已有窗口而非再开一个，避免堆叠出多个同款卡片。
+
+### 修复
+- **修复关闭一个 widget 窗口「其它窗口也跟着没了」**：Tauri 新窗口默认挂在触发创建它的窗口下，从某 widget 窗口内再开新窗口会成为它的子窗口，关父窗口会连带关子窗口。现将所有 widget 窗口统一挂到主卡片（main）下，互为兄弟、互不持有，关闭互不影响。
+- **修复独立 widget 窗口里剪贴板等 widget 不工作**：独立窗口此前只挂载 widget 组件、不跑其 `setup` 启动逻辑（剪贴板靠 setup 拉历史并订阅宿主广播），导致多开窗口里剪贴板历史为空、且复制后不实时更新。现在独立窗口与主卡片对齐，挂载时同样执行 widget 的 `setup`。
+- **修复主卡片收进托盘再显示后掉出最顶层**：Windows 下 `hide → show` 常会丢失 always-on-top，主卡片从托盘/快捷键唤回后可能不再置顶。现在启动时与每次显示后都显式 `set_always_on_top(true)`，保证主卡片始终常驻最上层。
+- **修复自动更新在国内网络（GitHub 被墙）下失效**：检测更新改从 jsDelivr CDN 读仓库内 `latest-release.json`（国内直连可达，与 Widget 商店同方案），替代直连 GitHub API；安装包下载地址支持配置 **GitHub 代理前缀**（主页「系统」设置 → 更新代理前缀），转发下载。从此更新检测不再依赖被墙的 api.github.com。
+
 ## [0.3.0] - 2026-08-13
 
 ### 新增

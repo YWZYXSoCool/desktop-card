@@ -1,7 +1,9 @@
 name: release
 
 # 推送形如 v1.2.3 的 tag 时：构建 Windows 安装包并创建 GitHub Release。
-# 版本号取自 src-tauri/tauri.conf.json，发布前需同步三处版本号（Cargo.toml / tauri.conf.json / package.json）。
+# 版本号取自 src-tauri/tauri.conf.json，发布前需同步四处版本号：
+#   Cargo.toml / tauri.conf.json / package.json / latest-release.json
+# （latest-release.json 是检测更新用的清单，应用经 jsDelivr CDN 读取，故取 GitHub 直连前的版本。）
 on:
   push:
     tags:
@@ -27,6 +29,8 @@ jobs:
 
       # Rust：tauri-action 内部会跑 npm run tauri build
       - uses: dtolnay/rust-toolchain@stable
+      # sccache：Rust 编译缓存（GitHub Actions 共享缓存后端），下次发版复用编译产物
+      - uses: mozilla-actions/sccache-action@v0.0.7
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
@@ -35,6 +39,7 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTC_WRAPPER: sccache
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'desktop-card v__VERSION__'

@@ -1,18 +1,27 @@
-//! 检测更新：从 GitHub Releases 拉取最新版本，发现新版本时下载安装包并触发安装。
+//! 检测更新：从 jsDelivr CDN 读仓库里的 `latest-release.json`（国内直连可达，无需代理），
+//! 发现更高版本时构造安装包下载地址（可配置 GitHub 代理前缀转发）。
+//! 下载安装包后触发安装。
 //!
 //! 只关心「有没有更高版本 + 装包」，不关心 UI。前端负责提示与进度展示。
 //! 网络失败 / 404 / JSON 解析失败一律静默（返回 Ok(None) 语义），不打扰用户。
+//!
+//! 为什么不用 GitHub API：`api.github.com` 在大陆常被墙，直连检测会静默失败。
+//! 改从 CDN 读仓库内清单（与 widget 商店同款 jsDelivr 方案），版本号仍在仓库 `package.json`
+//! / `tauri.conf.json` / `Cargo.toml` 同步，发布时多维护一份 `latest-release.json` 即可。
 
 use reqwest::header::USER_AGENT;
 use semver::Version;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
-/// GitHub 仓库：从这里拉取最新版本与安装包。
+/// GitHub 仓库：从这里构造安装包下载地址。
 const REPO: &str = "YWZYXSoCool/desktop-card";
+
+/// 直接读仓库内清单的 CDN 前缀（国内直连，免代理）。
+const CDN: &str = "https://cdn.jsdelivr.net/gh/YWZYXSoCool/desktop-card@main";
 
 /// 请求超时：避免网络卡死拖住异步命令。
 const TIMEOUT: Duration = Duration::from_secs(15);
@@ -58,92 +67,76 @@ pub struct UpdateInfo {
     release_url: String,
 }
 
-/// GitHub /releases/latest 响应里的 asset 条目。
-#[derive(serde::Deserialize)]
-struct Asset {
-    name: String,
-    browser_download_url: String,
+/// 仓库内版本清单 `latest-release.json`（发布时随三处版本号同步）。
+#[derive(Deserialize)]
+struct LatestRelease {
+    version: String,
+    asset_name: String,
 }
 
-/// GitHub /releases/latest 响应（只取需要的字段）。
-#[derive(serde::Deserialize)]
-struct Release {
-    tag_name: String,
-    assets: Vec<Asset>,
-}
-
-/// 从资产列表里挑 Windows 安装包：优先 `.msi`，其次 `.exe`。
-fn pick_installer(assets: &[Asset]) -> Option<&Asset> {
-    assets
-        .iter()
-        .find(|a| a.name.ends_with(".msi"))
-        .or_else(|| assets.iter().find(|a| a.name.ends_with(".exe")))
+/// 无更新时统一返回的 UpdateInfo（latest 为空串，asset 为 None）。
+fn no_update(current: &str, release_url: String) -> UpdateInfo {
+    UpdateInfo {
+        update_available: false,
+        current_version: current.into(),
+        latest_version: String::new(),
+        asset_name: None,
+        asset_url: None,
+        release_url,
+    }
 }
 
 /// 检查是否有新版本。网络 / 解析失败一律视为「无更新」返回 Ok（静默）。
+///
+/// `proxy` 为可配置的 GitHub 代理前缀（如 `https://ghproxy.net/`），仅用于转发安装包
+/// 下载；检测走 jsDelivr CDN 直连，无需代理。为空则直连 GitHub。
 #[tauri::command]
-pub async fn check_for_update() -> Result<UpdateInfo, String> {
+pub async fn check_for_update(proxy: Option<String>) -> Result<UpdateInfo, String> {
     let current = env!("CARGO_PKG_VERSION");
     let release_url = format!("https://github.com/{REPO}/releases");
-    let api_url = format!("https://api.github.com/repos/{REPO}/releases/latest");
 
-    // GitHub API 强制要求 User-Agent，否则返回 403。
+    // 从 CDN 读仓库内清单（国内直连可达）。404 / 网络失败一律静默回落为无更新。
+    let manifest_url = format!("{CDN}/latest-release.json");
     let resp = client()
-        .get(&api_url)
+        .get(&manifest_url)
         .header(USER_AGENT, "desktop-card-updater")
         .send()
         .await
         .map_err(|e| e.to_string())?;
-
-    // 404（仓库不存在或没有 release）等非 200：静默回落为无更新。
     if !resp.status().is_success() {
-        return Ok(UpdateInfo {
-            update_available: false,
-            current_version: current.into(),
-            latest_version: String::new(),
-            asset_name: None,
-            asset_url: None,
-            release_url,
-        });
+        return Ok(no_update(current, release_url));
     }
-
-    let release: Release = resp.json().await.map_err(|e| e.to_string())?;
-    let latest = release.tag_name;
+    let manifest: LatestRelease = resp.json().await.map_err(|e| e.to_string())?;
 
     // 版本号齐全且最新 > 当前才算有更新；任一解析失败视为无更新。
     let Some(cur) = parse_version(current) else {
-        return Ok(UpdateInfo {
-            update_available: false,
-            current_version: current.into(),
-            latest_version: latest.clone(),
-            asset_name: None,
-            asset_url: None,
-            release_url,
-        });
+        return Ok(no_update(current, release_url));
     };
-    let Some(lat) = parse_version(&latest) else {
-        return Ok(UpdateInfo {
-            update_available: false,
-            current_version: current.into(),
-            latest_version: latest.clone(),
-            asset_name: None,
-            asset_url: None,
-            release_url,
-        });
+    let Some(lat) = parse_version(&manifest.version) else {
+        return Ok(no_update(current, release_url));
     };
     let update_available = lat > cur;
 
-    let (asset_name, asset_url) = match pick_installer(&release.assets) {
-        Some(a) => (Some(a.name.clone()), Some(a.browser_download_url.clone())),
-        None => (None, None),
-    };
+    // 安装包地址固定为 GitHub release 下载；配置了代理前缀则前置转发（代理需拼完整 GitHub URL）。
+    let mut asset_url = format!(
+        "https://github.com/{REPO}/releases/download/v{}/{}",
+        manifest.version, manifest.asset_name
+    );
+    if let Some(p) = proxy.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let prefix = if p.ends_with('/') {
+            p.to_string()
+        } else {
+            format!("{p}/")
+        };
+        asset_url = format!("{prefix}{asset_url}");
+    }
 
     Ok(UpdateInfo {
         update_available,
         current_version: current.into(),
-        latest_version: latest,
-        asset_name,
-        asset_url,
+        latest_version: manifest.version,
+        asset_name: Some(manifest.asset_name),
+        asset_url: Some(asset_url),
         release_url,
     })
 }
